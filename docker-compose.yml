@@ -1,0 +1,71 @@
+services:
+
+  postgres:
+    image: postgres:17
+    container_name: saas-postgres
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_USER: saas
+      POSTGRES_PASSWORD: saas
+      POSTGRES_DB: saas
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  php-api:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+
+    container_name: saas-php-api
+
+    restart: unless-stopped
+
+    ports:
+      - "8080:8080"
+
+    volumes:
+      - ./php-api:/app
+
+    depends_on:
+      - postgres
+
+  kotlin-api:
+    build:
+      context: .
+      dockerfile: docker/kotlin/Dockerfile
+
+    container_name: saas-kotlin-api
+
+    restart: unless-stopped
+
+    ports:
+      - "8081:8080"
+
+    depends_on:
+      - postgres
+
+  python-api:
+    build:
+      context: .
+      dockerfile: docker/python/Dockerfile
+
+    container_name: saas-python-api
+
+    restart: unless-stopped
+
+    ports:
+      - "8082:8000"
+
+    volumes:
+      - ./python-api:/app
+
+    depends_on:
+      - postgres
+
+volumes:
+  postgres_data:

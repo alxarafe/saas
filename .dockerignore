@@ -1,0 +1,7 @@
+.git
+.idea
+node_modules
+vendor
+build
+.gradle
+__pycache__

@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.pyc
+
+# IDE / OS
+.DS_Store
+*.swp
+
+# LibreOffice
+.~lock.*
+
+# private (si no es repo real)
+private/
