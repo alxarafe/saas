@@ -67,5 +67,33 @@ services:
     depends_on:
       - postgres
 
+  node-api:
+    build:
+      context: .
+      dockerfile: docker/node/Dockerfile
+
+    ports:
+      - "8083:3000"
+
+    volumes:
+      - ./node-api:/app
+
+    depends_on:
+      - postgres
+
+  go-api:
+    build:
+      context: .
+      dockerfile: docker/go/Dockerfile
+
+    ports:
+      - "8084:3000"
+
+    volumes:
+      - ./go-api:/app
+
+    depends_on:
+      - postgres
+
 volumes:
   postgres_data:
