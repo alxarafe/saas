@@ -4,12 +4,14 @@ WORKDIR /app
 
 COPY kotlin-api /app
 
-RUN gradle build
+RUN gradle installDist
 
 FROM eclipse-temurin:21
 
 WORKDIR /app
 
-COPY --from=build /app/build/libs/*.jar app.jar
+COPY --from=build /app/build/install/kotlin-api /app
 
-CMD ["java", "-jar", "app.jar"]
+EXPOSE 3000
+
+CMD ["/app/bin/kotlin-api"]

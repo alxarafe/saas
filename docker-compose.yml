@@ -4,33 +4,27 @@ services:
     image: postgres:17
     container_name: saas-postgres
     restart: unless-stopped
-
     environment:
       POSTGRES_USER: saas
       POSTGRES_PASSWORD: saas
       POSTGRES_DB: saas
-
-    ports:
-      - "5432:5432"
-
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
 
   php-api:
     build:
       context: .
       dockerfile: docker/php/Dockerfile
-
     container_name: saas-php-api
-
     restart: unless-stopped
-
     ports:
-      - "8080:8080"
-
+      - "18080:3000"
     volumes:
       - ./php-api:/app
-
+      # Si algún día usas Composer, este volumen preservará vendor/
+      - php_api_vendor:/app/vendor
     depends_on:
       - postgres
 
@@ -38,14 +32,10 @@ services:
     build:
       context: .
       dockerfile: docker/kotlin/Dockerfile
-
     container_name: saas-kotlin-api
-
     restart: unless-stopped
-
     ports:
-      - "8081:8080"
-
+      - "18081:3000"
     depends_on:
       - postgres
 
@@ -53,17 +43,12 @@ services:
     build:
       context: .
       dockerfile: docker/python/Dockerfile
-
     container_name: saas-python-api
-
     restart: unless-stopped
-
     ports:
-      - "8082:8000"
-
+      - "18082:3000"
     volumes:
       - ./python-api:/app
-
     depends_on:
       - postgres
 
@@ -71,13 +56,14 @@ services:
     build:
       context: .
       dockerfile: docker/node/Dockerfile
-
+    container_name: saas-node-api
+    restart: unless-stopped
     ports:
-      - "8083:3000"
-
+      - "18083:3000"
     volumes:
-      - ./node-api:/app
-
+      - ./node-api:/app/node-api
+      # Volumen nombrado para preservar node_modules
+      - node_api_node_modules:/app/node-api/node_modules
     depends_on:
       - postgres
 
@@ -85,15 +71,40 @@ services:
     build:
       context: .
       dockerfile: docker/go/Dockerfile
-
+    container_name: saas-go-api
+    restart: unless-stopped
     ports:
-      - "8084:3000"
-
+      - "18084:3000"
     volumes:
       - ./go-api:/app
-
     depends_on:
       - postgres
 
+  bruno:
+    build:
+      context: .
+      dockerfile: docker/bruno/Dockerfile
+    container_name: saas-bruno
+    restart: unless-stopped
+    tty: true
+    stdin_open: true
+    environment:
+      BASE_URL_PHP: http://php-api:3000
+      BASE_URL_PYTHON: http://python-api:3000
+      BASE_URL_KOTLIN: http://kotlin-api:3000
+      BASE_URL_NODE: http://node-api:3000
+      BASE_URL_GO: http://go-api:3000
+    volumes:
+      - ./tests/bruno:/tests
+    depends_on:
+      - php-api
+      - python-api
+      - kotlin-api
+      - node-api
+      - go-api
+    command: ["tail", "-f", "/dev/null"]
+
 volumes:
   postgres_data:
+  node_api_node_modules:
+  php_api_vendor:

@@ -1,0 +1,7 @@
+[
+  { "name": "php",    "url": "{{BASE_URL_PHP}}" },
+  { "name": "python", "url": "{{BASE_URL_PYTHON}}" },
+  { "name": "kotlin", "url": "{{BASE_URL_KOTLIN}}" },
+  { "name": "node",   "url": "{{BASE_URL_NODE}}" },
+  { "name": "go",     "url": "{{BASE_URL_GO}}" }
+]

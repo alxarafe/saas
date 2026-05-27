@@ -1,0 +1,8 @@
+meta {
+  name: "Health"
+}
+
+get "{{base_url}}/health" {
+  expect status 200
+  expect json "status" == "ok"
+}
