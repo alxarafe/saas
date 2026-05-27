@@ -38,8 +38,8 @@ Todas las implementaciones deben comportarse de forma idéntica desde la perspec
 | Stack | Lenguaje | Puerto host |
 |-------|----------|-------------|
 | PHP API | PHP 8.4 | `18080` |
-| Python API | Python 3.13 | `18082` |
 | Kotlin API | Kotlin/JVM | `18081` |
+| Python API | Python 3.13 | `18082` |
 | Node API | Node.js + TypeScript | `18083` |
 | Go API | Go 1.24 | `18084` |
 

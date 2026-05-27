@@ -16,9 +16,9 @@ Construye las imágenes y levanta todos los servicios (PostgreSQL, 5 APIs, y el 
 
 ```bash
 curl localhost:18080/health
+curl localhost:18081/health
 curl localhost:18082/health
 curl localhost:18083/health
-curl localhost:18081/health
 curl localhost:18084/health
 ```
 

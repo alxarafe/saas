@@ -14,7 +14,17 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
     json.NewEncoder(w).Encode(HealthResponse{Status: "ok"})
 }
 
+func notFoundHandler(w http.ResponseWriter, r *http.Request) {
+    w.Header().Set("Content-Type", "application/json")
+    w.WriteHeader(http.StatusNotFound)
+    json.NewEncoder(w).Encode(map[string]any{
+        "error": map[string]string{"code": "not_found"},
+    })
+}
+
 func main() {
-    http.HandleFunc("/health", healthHandler)
-    http.ListenAndServe(":3000", nil)
+    mux := http.NewServeMux()
+    mux.HandleFunc("/health", healthHandler)
+    mux.HandleFunc("/", notFoundHandler)
+    http.ListenAndServe(":3000", mux)
 }

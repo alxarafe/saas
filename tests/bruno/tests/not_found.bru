@@ -11,4 +11,7 @@ tests {
   test("Status is 404", function() {
     expect(res.getStatus()).to.eql(404);
   });
+  test("Body matches contract", function() {
+    expect(res.getBody()).to.eql({ error: { code: "not_found" } });
+  });
 }

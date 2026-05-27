@@ -9,6 +9,13 @@ app.get('/health', async () => {
   }
 })
 
+app.setNotFoundHandler(async (_request, reply) => {
+  reply.code(404)
+  return {
+    error: { code: 'not_found' }
+  }
+})
+
 app.listen({
   port: 3000,
   host: '0.0.0.0'
