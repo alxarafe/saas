@@ -11,5 +11,5 @@ def health():
 async def not_found(request: Request, exc):
     return JSONResponse(
         status_code=404,
-        content={"error": {"code": "not_found"}},
+        content={"error": {"code": "endpoint_not_found"}},
     )

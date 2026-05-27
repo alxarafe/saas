@@ -21,7 +21,7 @@ fun main() {
 
             get("{...}") {
                 call.response.status(HttpStatusCode.NotFound)
-                call.respond(mapOf("error" to mapOf("code" to "not_found")))
+                call.respond(mapOf("error" to mapOf("code" to "endpoint_not_found")))
             }
         }
 

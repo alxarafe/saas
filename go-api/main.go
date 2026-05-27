@@ -18,7 +18,7 @@ func notFoundHandler(w http.ResponseWriter, r *http.Request) {
     w.Header().Set("Content-Type", "application/json")
     w.WriteHeader(http.StatusNotFound)
     json.NewEncoder(w).Encode(map[string]any{
-        "error": map[string]string{"code": "not_found"},
+        "error": map[string]string{"code": "endpoint_not_found"},
     })
 }
 

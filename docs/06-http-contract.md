@@ -117,7 +117,7 @@ Respuesta:
 
 ### `GET /nonexistent`
 
-Cuando un endpoint no exista, todas las implementaciones deben responder exactamente:
+Cuando un endpoint no exista (la ruta no está definida en la API), todas las implementaciones deben responder exactamente:
 
 Respuesta:
 
@@ -128,7 +128,7 @@ Respuesta:
 ```json
 {
   "error": {
-    "code": "not_found"
+    "code": "endpoint_not_found"
   }
 }
 ```
@@ -206,6 +206,28 @@ Con mensaje opcional de depuración:
 }
 ```
 
+### Endpoint vs recurso no encontrado
+
+El contrato distingue dos tipos de `404`:
+
+- **`endpoint_not_found`** — la ruta solicitada no existe en la API (ej. `GET /xyz`).
+- **`not_found`** — la ruta existe pero el recurso solicitado no se encuentra (ej. `GET /products/999`).
+
+El código HTTP es el mismo (`404`), por lo que no hay fuga de información. El cliente puede diferenciar un typo de un recurso legítimamente ausente.
+}
+```
+
+Con mensaje opcional de depuración:
+
+```json
+{
+  "error": {
+    "code": "not_found",
+    "message": "User with id 42 not found"
+  }
+}
+```
+
 ### Errores de validación (422)
 
 Deben incluir un array `details` indicando qué campos fallaron y por qué:
@@ -232,15 +254,16 @@ Cada detalle contiene:
 
 ### Códigos de error soportados
 
-| HTTP Status | Error Code |
-|-------------|------------|
-| 400 | `bad_request` |
-| 401 | `unauthorized` |
-| 403 | `forbidden` |
-| 404 | `not_found` |
-| 409 | `conflict` |
-| 422 | `validation_error` |
-| 500 | `internal_error` |
+| HTTP Status | Error Code | Uso |
+|-------------|------------|-----|
+| 400 | `bad_request` | Petición mal formada |
+| 401 | `unauthorized` | Autenticación requerida o inválida |
+| 403 | `forbidden` | Sin permisos para el recurso |
+| 404 | `endpoint_not_found` | La ruta no existe en la API |
+| 404 | `not_found` | El recurso existe pero no se encontró |
+| 409 | `conflict` | Conflicto de estado (ej. duplicado) |
+| 422 | `validation_error` | Error de validación en los datos |
+| 500 | `internal_error` | Error interno del servidor |
 
 ---
 

@@ -12,6 +12,6 @@ tests {
     expect(res.getStatus()).to.eql(404);
   });
   test("Body matches contract", function() {
-    expect(res.getBody()).to.eql({ error: { code: "not_found" } });
+    expect(res.getBody()).to.eql({ error: { code: "endpoint_not_found" } });
   });
 }
