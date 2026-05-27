@@ -1,0 +1,17 @@
+meta {
+  name: Me Missing Token
+  type: http
+}
+
+get {
+  url: {{base_url}}/me
+}
+
+tests {
+  test("Status is 401", function() {
+    expect(res.getStatus()).to.eql(401);
+  });
+  test("Error code is missing_token", function() {
+    expect(res.getBody()).to.eql({ error: { code: "missing_token" } });
+  });
+}

@@ -9,6 +9,7 @@
 set -e
 
 BRUNO_CONTAINER="saas-bruno"
+AUTH_TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwiZW1haWwiOiJhZG1pbkBleGFtcGxlLmNvbSJ9.MTO9PoTY5azdFpJ7s4zTHpibadJdkQlHxqj5Lak5DWI"
 
 if ! docker ps --format '{{.Names}}' | grep -q "^${BRUNO_CONTAINER}$"; then
   echo "  El contenedor '${BRUNO_CONTAINER}' no está corriendo."
@@ -28,7 +29,7 @@ run_stack() {
   fi
 
   echo "  ─── ${name} ───"
-  docker exec "${BRUNO_CONTAINER}" bru run /tests/tests --env-var "base_url=${url}" 2>&1 |
+  docker exec "${BRUNO_CONTAINER}" bru run /tests/tests --env-var "base_url=${url}" --env-var "auth_token=${AUTH_TOKEN}" 2>&1 |
     sed 's/^/    /'
   echo ""
 }

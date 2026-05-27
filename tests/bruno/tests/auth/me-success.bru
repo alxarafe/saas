@@ -1,0 +1,21 @@
+meta {
+  name: Me Success
+  type: http
+}
+
+get {
+  url: {{base_url}}/me
+}
+
+headers {
+  Authorization: Bearer {{auth_token}}
+}
+
+tests {
+  test("Status is 200", function() {
+    expect(res.getStatus()).to.eql(200);
+  });
+  test("Email matches", function() {
+    expect(res.getBody()).to.eql({ data: { id: 1, email: "admin@example.com" } });
+  });
+}

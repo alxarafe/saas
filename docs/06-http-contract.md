@@ -135,6 +135,120 @@ Respuesta:
 
 ---
 
+---
+
+## Autenticación
+
+### `POST /auth/login`
+
+Inicia sesión con credenciales fijas y devuelve un JWT.
+
+Request:
+
+```json
+{
+  "email": "admin@example.com",
+  "password": "secret"
+}
+```
+
+Credenciales válidas:
+
+| Campo | Valor |
+|-------|-------|
+| email | `admin@example.com` |
+| password | `secret` |
+
+Respuesta correcta:
+
+```
+200 OK
+```
+
+```json
+{
+  "data": {
+    "token": "<jwt>"
+  }
+}
+```
+
+Credenciales inválidas:
+
+```
+401 Unauthorized
+```
+
+```json
+{
+  "error": {
+    "code": "invalid_credentials"
+  }
+}
+```
+
+### JWT
+
+- Algoritmo: `HS256`
+- Secret: `secret`
+- Payload:
+
+```json
+{
+  "sub": "1",
+  "email": "admin@example.com"
+}
+```
+
+### `GET /me`
+
+Endpoint protegido que requiere `Authorization: Bearer <jwt>`.
+
+Respuesta correcta:
+
+```
+200 OK
+```
+
+```json
+{
+  "data": {
+    "id": 1,
+    "email": "admin@example.com"
+  }
+}
+```
+
+Token ausente:
+
+```
+401 Unauthorized
+```
+
+```json
+{
+  "error": {
+    "code": "missing_token"
+  }
+}
+```
+
+Token inválido:
+
+```
+401 Unauthorized
+```
+
+```json
+{
+  "error": {
+    "code": "invalid_token"
+  }
+}
+```
+
+---
+
 ## Respuestas exitosas
 
 ### Recurso individual

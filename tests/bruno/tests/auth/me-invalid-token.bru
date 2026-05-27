@@ -1,0 +1,21 @@
+meta {
+  name: Me Invalid Token
+  type: http
+}
+
+get {
+  url: {{base_url}}/me
+}
+
+headers {
+  Authorization: Bearer invalid.jwt.token
+}
+
+tests {
+  test("Status is 401", function() {
+    expect(res.getStatus()).to.eql(401);
+  });
+  test("Error code is invalid_token", function() {
+    expect(res.getBody()).to.eql({ error: { code: "invalid_token" } });
+  });
+}
