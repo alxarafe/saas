@@ -19,4 +19,4 @@ echo "  Ejecutando benchmark en el contenedor '${BRUNO_CONTAINER}'..."
 echo "  Iteraciones por stack: ${ITERATIONS}"
 echo ""
 
-docker exec -it "${BRUNO_CONTAINER}" node /tests/benchmark.mjs "${ITERATIONS}"
+docker exec -i "${BRUNO_CONTAINER}" node /tests/benchmark.mjs "${ITERATIONS}"

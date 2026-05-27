@@ -1,0 +1,14 @@
+meta {
+  name: Not Found
+  type: http
+}
+
+get {
+  url: {{base_url}}/nonexistent
+}
+
+tests {
+  test("Status is 404", function() {
+    expect(res.getStatus()).to.eql(404);
+  });
+}

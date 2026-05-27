@@ -1,8 +1,17 @@
 meta {
-  name: "Health"
+  name: Health
+  type: http
 }
 
-get "{{base_url}}/health" {
-  expect status 200
-  expect json "status" == "ok"
+get {
+  url: {{base_url}}/health
+}
+
+tests {
+  test("Status is 200", function() {
+    expect(res.getStatus()).to.eql(200);
+  });
+  test("Body has status ok", function() {
+    expect(res.getBody().status).to.eql("ok");
+  });
 }

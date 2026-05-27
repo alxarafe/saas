@@ -1,118 +1,56 @@
 # SaaS Multi-Stack API Laboratory
 
-Comparative backend laboratory for evaluating multiple programming languages and runtimes implementing the exact same API contract.
+Repositorio laboratorio para implementar el mismo contrato API en múltiples lenguajes y runtimes, desplegados con Docker Compose.
 
-The objective of this repository is not to compare syntax, but to compare:
+Todas las implementaciones deben comportarse de forma idéntica desde la perspectiva del cliente.
 
-- developer experience,
-- architecture ergonomics,
-- Docker integration,
-- authentication implementation,
-- testing,
-- performance,
-- operational consistency,
-- maintainability.
+## Inicio rápido
 
-Every implementation must behave identically from the client perspective.
+```bash
+# Levantar todos los servicios
+./bin/docker-up.sh
 
----
+# Ejecutar tests de contrato
+./bin/test-simple.sh
 
-# Objectives
+# Benchmark completo
+./bin/test.sh
 
-This repository aims to provide:
+# Documentación completa
+# → docs/index.md
+```
 
-- homogeneous API implementations,
-- shared contract testing,
-- shared authentication strategy,
-- reproducible Docker infrastructure,
-- comparable developer workflows,
-- benchmarking-ready services.
+## Scripts
 
----
+| Comando | Descripción |
+|---------|-------------|
+| `./bin/docker-up.sh` | Construye y levanta servicios |
+| `./bin/docker-down.sh` | Detiene servicios |
+| `./bin/docker-restart.sh` | Reinicia servicios |
+| `./bin/docker-logs.sh` | Muestra logs |
+| `./bin/docker-build.sh` | Construye imágenes |
+| `./bin/test.sh` | Benchmark completo |
+| `./bin/test-simple.sh` | Tests rápidos de contrato |
+| `./bin/shell.sh` | Shell en un contenedor |
 
-# Current Stacks
+## Stacks
 
-| Stack | Language | Status |
-|---|---|---|
-| PHP API | PHP 8.4 | In progress |
-| Python API | Python 3.13 | In progress |
-| Kotlin API | Kotlin/JVM | In progress |
-| Node API | Node.js + TypeScript | In progress |
-| Go API | Go 1.24 | In progress |
+| Stack | Lenguaje | Puerto host |
+|-------|----------|-------------|
+| PHP API | PHP 8.4 | `18080` |
+| Python API | Python 3.13 | `18082` |
+| Kotlin API | Kotlin/JVM | `18081` |
+| Node API | Node.js + TypeScript | `18083` |
+| Go API | Go 1.24 | `18084` |
 
----
+## Documentación
 
-# Infrastructure
+La documentación completa está en [`docs/`](docs/index.md).
 
-| Component | Purpose |
-|---|---|
-| Docker Compose | Orchestration |
-| PostgreSQL | Shared database |
-| Bruno | Contract testing |
-| GitHub Actions | CI/CD (planned) |
-
----
-
-# Architectural Principles
-
-## Contract-first
-
-Clients must not know which implementation is behind the API.
-
-Every implementation must expose:
-
-- identical routes,
-- identical payloads,
-- identical status codes,
-- identical authentication semantics,
-- identical error formats.
-
----
-
-## Operational consistency
-
-All containers expose the same internal port:
-
-3000
-
-External host ports are mapped independently.
-
----
-
-# Port Mapping
-
-| Service | Host Port | Internal Port |
-|---|---|---|
-| PHP API | 18080 | 3000 |
-| Python API | 18081 | 3000 |
-| Kotlin API | 18082 | 3000 |
-| Node API | 18083 | 3000 |
-| Go API | 18084 | 3000 |
-
----
-
-# Repository Structure
-
-```text
-.
-├── docker/
-│   ├── bruno/
-│   ├── go/
-│   ├── kotlin/
-│   ├── node/
-│   ├── php/
-│   └── python/
-│
-├── go-api/
-├── kotlin-api/
-├── node-api/
-├── php-api/
-├── python-api/
-│
-├── tests/
-│   └── bruno/
-│
-├── docker-compose.yml
-├── README.md
-└── .gitignore
-
+| Documento | Contenido |
+|-----------|-----------|
+| [Visión general](docs/01-overview.md) | Stacks, principios, infraestructura |
+| [Inicio rápido](docs/02-quickstart.md) | Levantar, testear, detener |
+| [Arquitectura](docs/03-architecture.md) | Estructura del repo, contrato API, BD |
+| [Testing](docs/04-testing.md) | Contract tests, benchmark, cómo añadir tests |
+| [Scripts](docs/05-scripts.md) | Referencia de scripts en `bin/` |
