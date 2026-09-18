@@ -23,34 +23,35 @@ fun hmacSha256(data: String, secret: String): String {
 }
 
 fun createToken(sub: String, email: String, secret: String): String {
+    val now = System.currentTimeMillis() / 1000
     val header = Base64.getUrlEncoder().withoutPadding()
         .encodeToString("""{"alg":"HS256","typ":"JWT"}""".toByteArray(Charsets.UTF_8))
     val payload = Base64.getUrlEncoder().withoutPadding()
-        .encodeToString("""{"sub":"$sub","email":"$email"}""".toByteArray(Charsets.UTF_8))
+        .encodeToString(Json.encodeToString(JsonObject.serializer(), buildJsonObject {
+            put("sub", sub)
+            put("email", email)
+            put("iat", now)
+            put("exp", now + 3600)
+        }).toByteArray(Charsets.UTF_8))
     val sig = hmacSha256("$header.$payload", secret)
     return "$header.$payload.$sig"
 }
 
-fun parseToken(token: String, secret: String): Map<String, String>? {
-    try {
+fun parseToken(token: String, secret: String): JsonObject? {
+    return try {
         val parts = token.split(".")
         if (parts.size != 3) return null
         val sig = hmacSha256("${parts[0]}.${parts[1]}", secret)
         if (sig != parts[2]) return null
-        val payload = Base64.getUrlDecoder().decode(parts[1]).decodeToString()
-        val map = mutableMapOf<String, String>()
-        val fields = payload.trimStart('{').trimEnd('}').split(",")
-        for (f in fields) {
-            val kv = f.split(":", limit = 2)
-            if (kv.size == 2) {
-                val key = kv[0].trim().trim('"')
-                val value = kv[1].trim().trim('"')
-                map[key] = value
-            }
-        }
-        return map
+        val payload = Json.parseToJsonElement(
+            Base64.getUrlDecoder().decode(parts[1]).decodeToString()
+        )
+        if (payload !is JsonObject) return null
+        val exp = payload["exp"]?.jsonPrimitive?.longOrNull
+        if (exp != null && exp < System.currentTimeMillis() / 1000) return null
+        payload
     } catch (e: Exception) {
-        return null
+        null
     }
 }
 
@@ -156,12 +157,14 @@ fun main() {
                         call.response.status(HttpStatusCode.Unauthorized)
                         return@get call.respond(errorJson("invalid_token"))
                     }
-                    val id = payload["sub"] ?: ""
-                    val email = payload["email"] ?: ""
-                    call.respondText(
-                        contentType = ContentType.Application.Json,
-                        text = """{"data":{"id":${id},"email":"${email}"}}"""
-                    )
+                    val id = (payload["sub"] as? JsonPrimitive)?.content?.toLongOrNull() ?: 0L
+                    val email = (payload["email"] as? JsonPrimitive)?.content.orEmpty()
+                    call.respond(buildJsonObject {
+                        putJsonObject("data") {
+                            put("id", id)
+                            put("email", email)
+                        }
+                    })
                 } catch (e: Exception) {
                     call.response.status(HttpStatusCode.InternalServerError)
                     call.respond(errorJson("internal_error"))

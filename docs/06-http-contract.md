@@ -222,15 +222,22 @@ Faltan campos obligatorios o tienen un tipo inválido:
 ### JWT
 
 - Algoritmo: `HS256`
-- Secret: `secret`
+- Secret: `secret` (fijo en el laboratorio; en producción vendría de un gestor de secrets)
+- TTL: 1 hora (`iat`/`exp` en segundos)
 - Payload:
 
 ```json
 {
   "sub": "1",
-  "email": "admin@example.com"
+  "email": "admin@example.com",
+  "iat": 1789736515,
+  "exp": 1789740115
 }
 ```
+
+Los verificadores de `/me` aceptan tokens firmados sin `exp` (compat con el
+`AUTH_TOKEN` estático usado en los scripts), pero rechazan tokens `exp` en el
+pasado.
 
 ### `GET /me`
 

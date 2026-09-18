@@ -16,8 +16,8 @@ Todos los scripts son auto-contenidos y se ejecutan desde la raíz del repositor
 
 | Script | Descripción |
 |--------|-------------|
-| `bin/test.sh [iteraciones]` | Benchmark completo (Bruno + HTTP directo) |
-| `bin/test-simple.sh [stacks...]` | Tests rápidos de contrato (solo Bruno) |
+| `bin/test.sh [iteraciones]` | Benchmark completo (Bruno + HTTP directo). Aborta si algún stack no está `healthy` |
+| `bin/test-simple.sh [stacks...]` | Tests rápidos de contrato (solo Bruno). Aborta si algún stack no está `healthy` |
 
 ## Utilidades
 

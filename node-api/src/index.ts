@@ -77,7 +77,8 @@ app.post<{ Body: unknown }>('/auth/login', async (request, reply) => {
     return { error: { code: 'invalid_credentials' } }
   }
 
-  const token = await new SignJWT({ sub: '1', email: 'admin@example.com' })
+  const now = Math.floor(Date.now() / 1000)
+  const token = await new SignJWT({ sub: '1', email: 'admin@example.com', iat: now, exp: now + 3600 })
     .setProtectedHeader({ alg })
     .sign(secret)
 

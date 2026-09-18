@@ -20,6 +20,10 @@ Archivos `.bru` en `tests/bruno/tests/`. Verifican que cada implementación cump
 ./bin/test-simple.sh php go node
 ```
 
+Antes de ejecutar, los scripts hacen un **pre-flight de salud**: si algún stack
+no está `healthy` (sondeo de `/health` vía healthcheck de Docker), abortan y
+indican cómo levantarlo (`./bin/docker-up.sh <servicio>`).
+
 Los tests usan el bloque `tests` con sintaxis JavaScript:
 
 ```bru

@@ -10,7 +10,7 @@
 │   ├── go/
 │   ├── kotlin/
 │   ├── node/
-│   ├── php/
+│   ├── php/              # Dockerfile + Caddyfile (FrankenPHP)
 │   └── python/
 ├── docker-compose.yml    # Orquestación principal
 ├── docs/                 # Documentación
@@ -44,6 +44,23 @@ Todas las implementaciones exponen el mismo conjunto de endpoints:
 ### Puerto interno
 
 Todos los contenedores escuchan en el puerto `3000`. El mapeo a puertos host es independiente por servicio.
+
+## Runtimes y builds
+
+| Stack | Runtime | Build |
+|-------|---------|-------|
+| PHP | FrankenPHP (Caddy + PHP) | `docker/php/Dockerfile` + `Caddyfile` (`php_server`) |
+| Kotlin | eclipse-temurin:21 (dist) | Gradle multi-stage |
+| Python | Uvicorn | bind-mount de código (`./python-api:/app`) |
+| Node | `node:22-alpine` | `tsc` multi-stage → `node dist/index.js` |
+| Go | `alpine:3.20` | `CGO_ENABLED=0` multi-stage, binario estático |
+
+## Salud y arranque
+
+Todos los servicios definen un `healthcheck`; las APIs sondean `GET /health` y
+`postgres` usa `pg_isready`. Las dependencias usan `condition: service_healthy`,
+por lo que `docker compose up` no arranca Bruno hasta que las 5 APIs responden.
+Los scripts de test abortan antes de ejecutar si un stack no está `healthy`.
 
 ## Base de datos
 

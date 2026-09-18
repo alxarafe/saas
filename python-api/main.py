@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 import os
+import time
 import jwt
 import json
 import psycopg
@@ -88,8 +89,9 @@ async def login(request: Request):
     if body.get("email") != VALID_EMAIL or body.get("password") != VALID_PASSWORD:
         return error_response(401, "invalid_credentials")
 
+    now = int(time.time())
     token = jwt.encode(
-        {"sub": "1", "email": VALID_EMAIL},
+        {"sub": "1", "email": VALID_EMAIL, "iat": now, "exp": now + 3600},
         JWT_SECRET,
         algorithm="HS256",
     )

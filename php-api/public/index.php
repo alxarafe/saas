@@ -25,6 +25,10 @@ function jwt_decode(string $token, string $secret): ?array {
     );
     if (!hash_equals($expected, $parts[2])) return null;
 
+    if (isset($payload['exp']) && is_int($payload['exp']) && $payload['exp'] < time()) {
+        return null;
+    }
+
     return $payload;
 }
 
@@ -200,9 +204,12 @@ if ($path === '/auth/login' && $method === 'POST') {
         json_response(401, ['error' => ['code' => 'invalid_credentials']]);
     }
 
+    $now = time();
     $token = jwt_encode([
         'sub' => '1',
         'email' => 'admin@example.com',
+        'iat' => $now,
+        'exp' => $now + 3600,
     ], 'secret');
 
     json_response(200, ['data' => ['token' => $token]]);

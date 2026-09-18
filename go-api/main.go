@@ -88,6 +88,8 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
     token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
         "sub":   "1",
         "email": "admin@example.com",
+        "iat":   time.Now().Unix(),
+        "exp":   time.Now().Add(time.Hour).Unix(),
     })
 
     tokenString, err := token.SignedString([]byte("secret"))
@@ -117,7 +119,7 @@ func meHandler(w http.ResponseWriter, r *http.Request) {
     tokenString := strings.TrimPrefix(auth, "Bearer ")
     token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
         return []byte("secret"), nil
-    })
+    }, jwt.WithValidMethods([]string{"HS256"}))
 
     if err != nil || !token.Valid {
         writeError(w, http.StatusUnauthorized, "invalid_token")
@@ -125,9 +127,14 @@ func meHandler(w http.ResponseWriter, r *http.Request) {
     }
 
     claims := token.Claims.(jwt.MapClaims)
+    id, err := strconv.ParseInt(fmt.Sprint(claims["sub"]), 10, 64)
+    if err != nil {
+        writeError(w, http.StatusUnauthorized, "invalid_token")
+        return
+    }
     writeJSON(w, http.StatusOK, map[string]any{
         "data": map[string]any{
-            "id":    1,
+            "id":    id,
             "email": claims["email"],
         },
     })
