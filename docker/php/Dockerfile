@@ -1,15 +1,14 @@
-FROM php:8.4-cli-alpine
+FROM dunglas/frankenphp:1-php8.4-alpine
 
-RUN apk add --no-cache \
-    postgresql-dev \
-    $PHPIZE_DEPS
-
-RUN docker-php-ext-install pdo pdo_pgsql
-
-WORKDIR /app
+RUN apk add --no-cache postgresql-dev \
+    && docker-php-ext-install pdo pdo_pgsql
 
 COPY php-api /app
 
+COPY docker/php/Caddyfile /etc/caddy/Caddyfile
+
+WORKDIR /app
+
 EXPOSE 3000
 
-CMD ["php", "-S", "0.0.0.0:3000", "-t", "public"]
+CMD ["frankenphp", "run", "--config", "/etc/caddy/Caddyfile"]

@@ -27,10 +27,6 @@ services:
     restart: unless-stopped
     ports:
       - "18080:3000"
-    volumes:
-      - ./php-api:/app
-      # Si algún día usas Composer, este volumen preservará vendor/
-      - php_api_vendor:/app/vendor
     depends_on:
       postgres:
         condition: service_healthy
@@ -87,10 +83,6 @@ services:
     restart: unless-stopped
     ports:
       - "18083:3000"
-    volumes:
-      - ./node-api:/app/node-api
-      # Volumen nombrado para preservar node_modules
-      - node_api_node_modules:/app/node-api/node_modules
     depends_on:
       postgres:
         condition: service_healthy
@@ -109,8 +101,6 @@ services:
     restart: unless-stopped
     ports:
       - "18084:3000"
-    volumes:
-      - ./go-api:/app
     depends_on:
       postgres:
         condition: service_healthy
@@ -152,5 +142,3 @@ services:
 
 volumes:
   postgres_data:
-  node_api_node_modules:
-  php_api_vendor:
