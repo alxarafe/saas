@@ -1,0 +1,31 @@
+meta {
+  name: Create Users Bulk Rollback On Duplicate
+  type: http
+}
+
+post {
+  url: {{base_url}}/users/bulk
+  body: json
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "data": [
+      { "email": "rollback-probe@example.com", "password_hash": "hashed-a" },
+      { "email": "rollback-probe@example.com", "password_hash": "hashed-b" }
+    ]
+  }
+}
+
+tests {
+  test("Status is 409", function() {
+    expect(res.getStatus()).to.eql(409);
+  });
+  test("Error code is conflict", function() {
+    expect(res.getBody()).to.eql({ error: { code: "conflict" } });
+  });
+}

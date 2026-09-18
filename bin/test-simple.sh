@@ -29,7 +29,7 @@ run_stack() {
   fi
 
   echo "  ─── ${name} ───"
-  docker exec "${BRUNO_CONTAINER}" bru run /tests/tests --env-var "base_url=${url}" --env-var "auth_token=${AUTH_TOKEN}" 2>&1 |
+  docker exec "${BRUNO_CONTAINER}" bru run -r /tests/tests --env-var "base_url=${url}" --env-var "auth_token=${AUTH_TOKEN}" 2>&1 |
     sed 's/^/    /'
   echo ""
 }

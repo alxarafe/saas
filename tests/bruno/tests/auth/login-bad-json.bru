@@ -1,0 +1,26 @@
+meta {
+  name: Login Bad JSON
+  type: http
+}
+
+post {
+  url: {{base_url}}/auth/login
+  body: text
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:text {
+  {bad
+}
+
+tests {
+  test("Status is 400", function() {
+    expect(res.getStatus()).to.eql(400);
+  });
+  test("Error code is bad_request", function() {
+    expect(res.getBody()).to.eql({ error: { code: "bad_request" } });
+  });
+}

@@ -1,0 +1,34 @@
+meta {
+  name: Create Users Bulk Data Not Array
+  type: http
+}
+
+post {
+  url: {{base_url}}/users/bulk
+  body: json
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "data": "not-an-array"
+  }
+}
+
+tests {
+  test("Status is 422", function() {
+    expect(res.getStatus()).to.eql(422);
+  });
+  test("Error code is validation_error", function() {
+    expect(res.getBody().error.code).to.eql("validation_error");
+  });
+  test("Details point to data field", function() {
+    const details = res.getBody().error.details;
+    expect(details).to.be.an('array');
+    expect(details[0].field).to.eql("data");
+    expect(details[0].code).to.eql("invalid_type");
+  });
+}

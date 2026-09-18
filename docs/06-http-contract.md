@@ -187,6 +187,38 @@ Credenciales inválidas:
 }
 ```
 
+Body no parseable como JSON o con `Content-Type` distinto de `application/json`:
+
+```
+400 Bad Request
+```
+
+```json
+{
+  "error": {
+    "code": "bad_request"
+  }
+}
+```
+
+Faltan campos obligatorios o tienen un tipo inválido:
+
+```
+422 Unprocessable Entity
+```
+
+```json
+{
+  "error": {
+    "code": "validation_error",
+    "details": [
+      { "field": "email", "code": "required" },
+      { "field": "password", "code": "invalid_type" }
+    ]
+  }
+}
+```
+
 ### JWT
 
 - Algoritmo: `HS256`
@@ -243,6 +275,157 @@ Token inválido:
 {
   "error": {
     "code": "invalid_token"
+  }
+}
+```
+
+---
+
+## Fase 2 — Usuarios
+
+### Modelo de datos
+
+Todos los stacks comparten la misma base de datos (`postgres`) y tabla:
+
+```sql
+CREATE TABLE IF NOT EXISTS users (
+    id BIGSERIAL PRIMARY KEY,
+    email TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+)
+```
+
+El esquema se crea automáticamente (`CREATE TABLE IF NOT EXISTS`) al arrancar cada stack.
+
+### `POST /users/bulk`
+
+Crea varios usuarios de forma transaccional: si cualquier inserción falla, **ninguna** se persiste (rollback total).
+
+Request:
+
+```
+201 Created
+```
+
+```json
+{
+  "data": [
+    { "email": "a@example.com", "password_hash": "hash-a" },
+    { "email": "b@example.com", "password_hash": "hash-b" }
+  ]
+}
+```
+
+Request body:
+
+| Campo | Tipo | Requerido |
+|-------|------|-----------|
+| `data` | `array` de objetos | sí |
+| `data[].email` | `string` | sí |
+| `data[].password_hash` | `string` | sí |
+
+Respuesta correcta:
+
+```json
+{
+  "data": [
+    {
+      "id": 1,
+      "email": "a@example.com",
+      "created_at": "2026-09-18T07:42:06Z"
+    }
+  ]
+}
+```
+
+`created_at` se devuelve en formato ISO 8601 (cada stack puede variar en la representación exacta de zona horaria; los tests no dependen del formato exacto).
+
+Body no parseable como JSON:
+
+```
+400 Bad Request
+```
+
+```json
+{ "error": { "code": "bad_request" } }
+```
+
+Validación (campos obligatorios o tipos incorrectos):
+
+```
+422 Unprocessable Entity
+```
+
+```json
+{
+  "error": {
+    "code": "validation_error",
+    "details": [
+      { "field": "data[0].password_hash", "code": "required" },
+      { "field": "data[0].email", "code": "invalid_type" }
+    ]
+  }
+}
+```
+
+Email duplicado (a nivel de tabla o dentro del mismo batch):
+
+```
+409 Conflict
+```
+
+```json
+{ "error": { "code": "conflict" } }
+```
+
+En este caso el batch completo se revierte: no quedan filas parciales.
+
+### `GET /users`
+
+Lista usuarios paginados.
+
+Parámetros de consulta:
+
+| Parámetro | Default | Rango | Descripción |
+|-----------|---------|-------|-------------|
+| `limit` | `20` | `1` a `100` | Número de resultados |
+| `offset` | `0` | `>= 0` | Desplazamiento |
+
+Respuesta:
+
+```
+200 OK
+```
+
+```json
+{
+  "data": [
+    { "id": 1, "email": "a@example.com", "created_at": "2026-09-18T07:42:06Z" }
+  ],
+  "pagination": {
+    "limit": 20,
+    "offset": 0,
+    "total": 125
+  }
+}
+```
+
+Los usuarios se ordenan por `id` de forma ascendente.
+
+`limit` o `offset` inválidos o fuera de rango:
+
+```
+422 Unprocessable Entity
+```
+
+```json
+{
+  "error": {
+    "code": "validation_error",
+    "details": [
+      { "field": "limit", "code": "invalid_type" }
+    ]
   }
 }
 ```
@@ -328,19 +511,6 @@ El contrato distingue dos tipos de `404`:
 - **`not_found`** — la ruta existe pero el recurso solicitado no se encuentra (ej. `GET /products/999`).
 
 El código HTTP es el mismo (`404`), por lo que no hay fuga de información. El cliente puede diferenciar un typo de un recurso legítimamente ausente.
-}
-```
-
-Con mensaje opcional de depuración:
-
-```json
-{
-  "error": {
-    "code": "not_found",
-    "message": "User with id 42 not found"
-  }
-}
-```
 
 ### Errores de validación (422)
 
@@ -377,6 +547,7 @@ Cada detalle contiene:
 | 404 | `not_found` | El recurso existe pero no se encontró |
 | 409 | `conflict` | Conflicto de estado (ej. duplicado) |
 | 422 | `validation_error` | Error de validación en los datos |
+| — | — | Códigos de `details[]`: `required` (campo ausente o vacío), `invalid_type` (presente con tipo incorrecto), `min`, `format` |
 | 500 | `internal_error` | Error interno del servidor |
 
 ---

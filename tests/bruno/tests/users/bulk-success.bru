@@ -1,0 +1,47 @@
+meta {
+  name: Create Users Bulk Success
+  type: http
+}
+
+post {
+  url: {{base_url}}/users/bulk
+  body: json
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "data": [
+      { "email": "bulk-{{$randomUUID}}-a@example.com", "password_hash": "hashed-a" },
+      { "email": "bulk-{{$randomUUID}}-b@example.com", "password_hash": "hashed-b" }
+    ]
+  }
+}
+
+tests {
+  test("Status is 201", function() {
+    expect(res.getStatus()).to.eql(201);
+  });
+  test("Returns created users array", function() {
+    const body = res.getBody();
+    expect(body.data).to.be.an('array');
+    expect(body.data.length).to.eql(2);
+  });
+  test("Each user has id, email and created_at", function() {
+    const body = res.getBody();
+    for (const user of body.data) {
+      expect(user.id).to.be.a('number');
+      expect(user.email).to.be.a('string');
+      expect(user.created_at).to.be.a('string');
+    }
+  });
+  test("Does not expose password_hash", function() {
+    const body = res.getBody();
+    for (const user of body.data) {
+      expect(user.password_hash).to.eql(undefined);
+    }
+  });
+}

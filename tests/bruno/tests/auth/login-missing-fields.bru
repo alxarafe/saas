@@ -1,0 +1,28 @@
+meta {
+  name: Login Missing Fields
+  type: http
+}
+
+post {
+  url: {{base_url}}/auth/login
+  body: json
+}
+
+body:json {
+  {}
+}
+
+tests {
+  test("Status is 422", function() {
+    expect(res.getStatus()).to.eql(422);
+  });
+  test("Error code is validation_error", function() {
+    expect(res.getBody().error.code).to.eql("validation_error");
+  });
+  test("Details include email and password", function() {
+    expect(res.getBody().error.details).to.be.an('array');
+    const fields = res.getBody().error.details.map((d) => d.field);
+    expect(fields).to.include("email");
+    expect(fields).to.include("password");
+  });
+}

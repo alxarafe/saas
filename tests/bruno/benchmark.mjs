@@ -10,6 +10,9 @@ const stacks = JSON.parse(readFileSync(join(__dirname, 'stacks.json'), 'utf-8'))
 const ITERATIONS = parseInt(process.argv[2] || '5', 10);
 const WARMUP = ITERATIONS > 1 ? 1 : 0;
 
+const AUTH_TOKEN = process.env.AUTH_TOKEN ||
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwiZW1haWwiOiJhZG1pbkBleGFtcGxlLmNvbSJ9.MTO9PoTY5azdFpJ7s4zTHpibadJdkQlHxqj5Lak5DWI';
+
 function resolveUrl(tpl) {
   return tpl.replace(/\{\{(\w+)\}\}/g, (_, name) => process.env[name] || '');
 }
@@ -25,7 +28,7 @@ function runBrunoTest(baseUrl) {
   let code;
   try {
     execSync(
-      `bru run "${join(__dirname, 'tests')}" --env-var "base_url=${baseUrl}"`,
+      `bru run -r "${join(__dirname, 'tests')}" --env-var "base_url=${baseUrl}" --env-var "auth_token=${AUTH_TOKEN}"`,
       { encoding: 'utf-8', timeout: 60000, stdio: ['ignore', 'pipe', 'pipe'] }
     );
     passed = true;

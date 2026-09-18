@@ -71,4 +71,24 @@ Mide el rendimiento de cada stack combinando:
 | Archivo | Endpoint | Verifica |
 |---------|----------|----------|
 | `health.bru` | `GET /health` | status 200, body.status == "ok" |
-| `not_found.bru` | `GET /nonexistent` | status 404 |
+| `not_found.bru` | `GET /nonexistent` | status 404, code == "endpoint_not_found" |
+| `auth/login-success.bru` | `POST /auth/login` | status 200, token is string |
+| `auth/login-invalid-credentials.bru` | `POST /auth/login` | status 401, code == "invalid_credentials" |
+| `auth/login-bad-json.bru` | `POST /auth/login` | status 400, code == "bad_request" |
+| `auth/login-missing-fields.bru` | `POST /auth/login` | status 422, details incluyen email y password |
+| `auth/login-wrong-types.bru` | `POST /auth/login` | status 422, details incluyen invalid_type |
+| `auth/me-success.bru` | `GET /me` | status 200, id=1, email="admin@example.com" |
+| `auth/me-missing-token.bru` | `GET /me` | status 401, code == "missing_token" |
+| `auth/me-invalid-token.bru` | `GET /me` | status 401, code == "invalid_token" |
+| `users/bulk-success.bru` | `POST /users/bulk` | status 201, data array, sin password_hash |
+| `users/bulk-rollback.bru` | `POST /users/bulk` | status 409 + rollback (email duplicado en el batch) |
+| `users/bulk-bad-json.bru` | `POST /users/bulk` | status 400, code == "bad_request" |
+| `users/bulk-missing-fields.bru` | `POST /users/bulk` | status 422, detail data[0].password_hash required |
+| `users/bulk-wrong-types.bru` | `POST /users/bulk` | status 422, detail data[0].email invalid_type |
+| `users/bulk-data-not-array.bru` | `POST /users/bulk` | status 422, detail data invalid_type |
+| `users/bulk-empty.bru` | `POST /users/bulk` | status 422, validation_error |
+| `users/list-default.bru` | `GET /users` | status 200, limit=20, offset=0, sin password_hash, el probe de rollback nunca aparece |
+| `users/list-paginated.bru` | `GET /users?limit=1&offset=0` | status 200, limit=1, ≤1 resultado |
+| `users/list-invalid.bru` | `GET /users?limit=abc` | status 422, detail limit invalid_type |
+
+**Total: 20 requests / 52 tests por stack.**
