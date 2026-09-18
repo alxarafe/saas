@@ -12,6 +12,12 @@ services:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U saas -d saas"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
 
   php-api:
     build:
@@ -26,7 +32,14 @@ services:
       # Si algún día usas Composer, este volumen preservará vendor/
       - php_api_vendor:/app/vendor
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
 
   kotlin-api:
     build:
@@ -37,7 +50,14 @@ services:
     ports:
       - "18081:3000"
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3000/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
 
   python-api:
     build:
@@ -50,7 +70,14 @@ services:
     volumes:
       - ./python-api:/app
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3000/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
 
   node-api:
     build:
@@ -65,7 +92,14 @@ services:
       # Volumen nombrado para preservar node_modules
       - node_api_node_modules:/app/node-api/node_modules
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3000/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
 
   go-api:
     build:
@@ -78,7 +112,14 @@ services:
     volumes:
       - ./go-api:/app
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3000/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
 
   bruno:
     build:
@@ -97,11 +138,16 @@ services:
     volumes:
       - ./tests/bruno:/tests
     depends_on:
-      - php-api
-      - python-api
-      - kotlin-api
-      - node-api
-      - go-api
+      php-api:
+        condition: service_healthy
+      python-api:
+        condition: service_healthy
+      kotlin-api:
+        condition: service_healthy
+      node-api:
+        condition: service_healthy
+      go-api:
+        condition: service_healthy
     command: ["tail", "-f", "/dev/null"]
 
 volumes:

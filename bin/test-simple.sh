@@ -17,9 +17,22 @@ if ! docker ps --format '{{.Names}}' | grep -q "^${BRUNO_CONTAINER}$"; then
   exit 1
 fi
 
+check_health() {
+  local container="$1" label="$2"
+  local status
+  status=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}started{{end}}' "${container}" 2>/dev/null)
+  if [ "$status" != "healthy" ]; then
+    echo "  [${label}] NO SANO (estado: ${status})"
+    echo "  Ejecuta primero: ./bin/docker-up.sh ${container#saas-}"
+    exit 1
+  fi
+  echo "  [${label}] sano"
+}
+
 run_stack() {
-  local name="$1" url_var="$2"
+  local name="$1" url_var="$2" container="$3"
   local url
+  check_health "${container}" "$name"
   url=$(docker inspect "${BRUNO_CONTAINER}" 2>/dev/null |
     sed -n "s/.*${url_var}=\([^\",]*\).*/\1/p")
 
@@ -37,11 +50,11 @@ run_stack() {
 if [ $# -gt 0 ]; then
   for stack in "$@"; do
     case "$stack" in
-      php)    run_stack "php"    "BASE_URL_PHP" ;;
-      python) run_stack "python" "BASE_URL_PYTHON" ;;
-      kotlin) run_stack "kotlin" "BASE_URL_KOTLIN" ;;
-      node)   run_stack "node"   "BASE_URL_NODE" ;;
-      go)     run_stack "go"     "BASE_URL_GO" ;;
+      php)    run_stack "php"    "BASE_URL_PHP"    "saas-php-api" ;;
+      python) run_stack "python" "BASE_URL_PYTHON" "saas-python-api" ;;
+      kotlin) run_stack "kotlin" "BASE_URL_KOTLIN" "saas-kotlin-api" ;;
+      node)   run_stack "node"   "BASE_URL_NODE"   "saas-node-api" ;;
+      go)     run_stack "go"     "BASE_URL_GO"     "saas-go-api" ;;
       *)
         echo "  Stack desconocido: $stack"
         echo "  Válidos: php, python, kotlin, node, go"
@@ -49,9 +62,9 @@ if [ $# -gt 0 ]; then
     esac
   done
 else
-  run_stack "php"    "BASE_URL_PHP"
-  run_stack "python" "BASE_URL_PYTHON"
-  run_stack "kotlin" "BASE_URL_KOTLIN"
-  run_stack "node"   "BASE_URL_NODE"
-  run_stack "go"     "BASE_URL_GO"
+  run_stack "php"    "BASE_URL_PHP"    "saas-php-api"
+  run_stack "python" "BASE_URL_PYTHON" "saas-python-api"
+  run_stack "kotlin" "BASE_URL_KOTLIN" "saas-kotlin-api"
+  run_stack "node"   "BASE_URL_NODE"   "saas-node-api"
+  run_stack "go"     "BASE_URL_GO"     "saas-go-api"
 fi
