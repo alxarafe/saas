@@ -19,13 +19,17 @@
 ├── node-api/             # Implementación Node.js
 ├── php-api/              # Implementación PHP
 ├── python-api/           # Implementación Python
+├── benchmarks/
+│   └── results/          # Resultados k6 (por stack, JSON)
 ├── tests/
 │   ├── benchmark.sh      # Punto de entrada para benchmark
-│   └── bruno/            # Suite de contract testing
-│       ├── benchmark.mjs # Script de benchmark (Node)
-│       ├── bruno.json    # Configuración de colección
-│       ├── stacks.json   # Definición de stacks bajo test
-│       └── tests/        # Tests .bru (Bruno)
+│   ├── bruno/            # Suite de contract testing
+│   │   ├── benchmark.mjs # Script de benchmark (Node)
+│   │   ├── bruno.json    # Configuración de colección
+│   │   ├── stacks.json   # Definición de stacks bajo test
+│   │   └── tests/        # Tests .bru (Bruno)
+│   └── k6/               # Benchmarks de carga (Fase 3)
+│       └── mixed-workload.js
 └── README.md
 ```
 
@@ -61,6 +65,24 @@ Todos los servicios definen un `healthcheck`; las APIs sondean `GET /health` y
 `postgres` usa `pg_isready`. Las dependencias usan `condition: service_healthy`,
 por lo que `docker compose up` no arranca Bruno hasta que las 5 APIs responden.
 Los scripts de test abortan antes de ejecutar si un stack no está `healthy`.
+
+Los servicios de datos/API tienen límites de recursos (`cpus`/`mem_limit`) para
+que los benchmarks de carga sean reproducibles y comparables justos.
+
+## Benchmark de carga (Fase 3 — k6)
+
+El servicio `k6` (`profiles: [k6]`) no arranca con `docker compose up`; se ejecuta
+uno-de-una-vez con `bin/k6.sh`, que mide cada stack por separado en la red de
+compose (servicios internos: `http://<stack>:3000`).
+
+**Escenario Mixed Workload** (`tests/k6/mixed-workload.js`):
+- 75 % lecturas (`GET /health`, `/users`, `/me`)
+- 15 % escrituras (`POST /users/bulk`)
+- 8 % auth (`POST /auth/login`)
+- 2 % errores (`GET /not-found`, `GET /me` sin token)
+
+Configuración: `VU=10 DURATION=30s THINK_TIME=0.5` (variables de entorno).
+Cada ejecución genera un JSON resumen en `benchmarks/results/mixed-workload-<stack>.json`.
 
 ## Base de datos
 

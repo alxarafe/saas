@@ -38,4 +38,5 @@ Comparar objetivamente lenguajes y stacks en aspectos operativos reales:
 | Docker Compose | Orquestación |
 | PostgreSQL | Base de datos compartida |
 | Bruno | Contract testing |
+| k6 (`grafana/k6`) | Benchmark de carga (Mixed Workload, Fase 3) |
 | GitHub Actions | CI/CD (planificado) |

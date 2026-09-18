@@ -4,6 +4,7 @@
 
 - **Bruno CLI** (`@usebruno/cli`) para contract testing
 - **Benchmark** personalizado en Node.js que mide tiempos con y sin overhead de Bruno
+- **k6** (`grafana/k6`) para benchmark de carga mixta (Fase 3)
 - **Scripts en `bin/`** como puntos de entrada unificados
 
 ## Tipos de tests
@@ -56,6 +57,22 @@ Mide el rendimiento de cada stack combinando:
 # Ejemplo: 10 iteraciones
 ./bin/test.sh 10
 ```
+
+### Benchmark de carga (k6, Fase 3)
+
+`bin/k6.sh` ejecuta el escenario **Mixed Workload** con `grafana/k6`, un contenedor
+por stack (secuencial, mismas condiciones). Distribución por request:
+
+| Categoría | % | Endpoints |
+|-----------|---|-----------|
+| Lecturas | 75 % | `GET /health`, `GET /users`, `GET /me` |
+| Escrituras | 15 % | `POST /users/bulk` |
+| Auth | 8 % | `POST /auth/login` |
+| Errores | 2 % | `GET /not-found`, `GET /me` sin token |
+
+Cada ejecución exporta un JSON resumen a `benchmarks/results/mixed-workload-<stack>.json`
+con latencia p50/p95/p99 por categoría, throughput (RPS), checks y tasa de error.
+Umbral estructural: `http_req_failed < 5 %` (no aborta; marca el run con exit 99).
 
 ## Añadir un nuevo test
 

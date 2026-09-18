@@ -11,3 +11,6 @@ __pycache__/
 
 # private (si no es repo real)
 private/
+
+# Resultados de benchmarks k6 (artefactos generados)
+benchmarks/results/*.json

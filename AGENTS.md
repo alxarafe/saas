@@ -33,7 +33,7 @@ consultar; si se tocan, mantener el contrato.
 | Passwords/hashes triviales (`password_hash: "hash-a"`, `"secret"`) | Tests y seed | Laboratorio de contrato, no de seguridad |
 | Sin TLS (HTTP plano) | Todos los servicios | Red interna de Docker de pruebas |
 | Login sin hashing real | Los 5 stacks | Fase "Login Storm" de k6 podrá introducir bcrypt/argon2 como prueba |
-| `restart: unless-stopped` y sin límites de recursos por defecto | compose | Facilitar iteración; k6 exigirá `mem_limit`/`cpus` para comparar justo |
+| `restart: unless-stopped` con `cpus`/`mem_limit` (desde P1 #4→Fase 3) | compose | Facilitar iteración; k6 exige límites para comparar justo |
 
 ## Operativa / verificación
 
@@ -44,6 +44,7 @@ Comandos de referencia:
 
 - Validar compose: `docker compose config -q`
 - Tests de contrato (todos o por stack): `./bin/test-simple.sh [php python kotlin node go]`
+- Benchmark k6 (Fase 3): `./bin/k6.sh [php python kotlin node go]` (`VU=... DURATION=...`)
 - Construir y levantar: `./bin/docker-up.sh [servicio...]`
 - Estado de salud: `docker inspect -f '{{.Name}} → {{.State.Health.Status}}' saas-<stack>-api`
 - Los servicios fuera de un container `healthy` abortan los scripts de test
