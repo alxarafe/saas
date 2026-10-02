@@ -13,4 +13,5 @@ __pycache__/
 private/
 
 # Resultados de benchmarks k6 (artefactos generados)
-benchmarks/results/*.json
+benchmarks/results/*
+!benchmarks/results/.gitkeep

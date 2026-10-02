@@ -18,7 +18,7 @@ Todos los scripts son auto-contenidos y se ejecutan desde la raíz del repositor
 |--------|-------------|
 | `bin/test.sh [iteraciones]` | Benchmark completo (Bruno + HTTP directo). Aborta si algún stack no está `healthy` |
 | `bin/test-simple.sh [stacks...]` | Tests rápidos de contrato (solo Bruno). Aborta si algún stack no está `healthy` |
-| `bin/k6.sh [stacks...]` | k6 Mixed Workload (Fase 3). Ejecuta secuencialmente cada stack con `grafana/k6`. Aborta si algún stack no está `healthy` |
+| `bin/k6.sh [stacks...]` | k6 Mixed Workload en proyecto Compose y BD aislados. Barrido de RPS con fixture restaurado por ronda |
 
 ## Utilidades
 
@@ -40,9 +40,9 @@ Todos los scripts son auto-contenidos y se ejecutan desde la raíz del repositor
 # Benchmark completo (Bruno)
 ./bin/test.sh 10
 
-# Benchmark k6 Mixed Workload (los 5 stacks, 30s cada uno)
+# Benchmark k6 Mixed Workload (5 rondas por tasa y stack)
 ./bin/k6.sh
-# Configuración: VU=20 DURATION=60s ./bin/k6.sh go php
+# Configuración: RATES="20 50" REPEATS=2 DURATION=1m ./bin/k6.sh go php
 
 # Ver logs de un stack
 ./bin/docker-logs.sh python-api -f

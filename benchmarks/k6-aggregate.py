@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 # =============================================================================
-#  Agrega el JSON en formato NDJSON que k6 escribe con `--out json` y genera
-#  un resumen por stack (percentiles exactos p50/p90/p95/p99 por categoría).
+#  Agrega el NDJSON de k6 para una ronda de tasa de llegada fija.
 #  Uso:
-#    k6-aggregate.py <raw.ndjson> <stack> <out.json> [vus] [duration]
+#    k6-aggregate.py <raw.ndjson> <stack> <out.json> <rate> <duration> <round>
 # =============================================================================
 import json
 import math
 import sys
+from collections import defaultdict
 from datetime import datetime, timezone
 
 
@@ -49,26 +49,24 @@ def parse_duration(s):
 
 
 def main():
-    if len(sys.argv) < 4:
-        print("uso: k6-aggregate.py <raw.ndjson> <stack> <out.json> [vus] [duration]")
+    if len(sys.argv) != 7:
+        print("uso: k6-aggregate.py <raw.ndjson> <stack> <out.json> <rate> <duration> <round>")
         sys.exit(2)
 
     raw_path, stack, out_path = sys.argv[1], sys.argv[2], sys.argv[3]
-    vus = sys.argv[4] if len(sys.argv) > 4 else "?"
-    duration = sys.argv[5] if len(sys.argv) > 5 else "?"
+    offered_rps = float(sys.argv[4])
+    duration = sys.argv[5]
+    round_number = int(sys.argv[6])
 
-    trend_names = {
-        "http_req_duration",
-        "read_latency",
-        "write_latency",
-        "auth_latency",
-        "error_latency",
+    samples = []
+    endpoint_samples = defaultdict(list)
+    counts = defaultdict(float)
+    endpoint_counts = defaultdict(lambda: defaultdict(float))
+    metric_counts = {
+        "http_reqs", "dropped_iterations", "successful_requests",
+        "expected_client_errors", "contract_failures", "server_failures",
+        "network_failures", "request_failure_rate", "checks",
     }
-    samples = {name: [] for name in trend_names}
-    http_reqs = 0
-    failed = 0
-    checks_pass = 0
-    checks_fail = 0
 
     with open(raw_path, encoding="utf-8") as fh:
         for line in fh:
@@ -79,37 +77,61 @@ def main():
             if obj.get("type") != "Point":
                 continue
             metric = obj.get("metric")
-            value = (obj.get("data") or {}).get("value")
-            if metric in trend_names:
-                samples[metric].append(value)
-            elif metric == "http_reqs":
-                http_reqs += value or 0
-            elif metric == "http_req_failed":
-                failed += value or 0
-            elif metric == "checks":
-                if value:
-                    checks_pass += 1
+            data = obj.get("data") or {}
+            value = data.get("value")
+            if value is None:
+                continue
+            endpoint = (data.get("tags") or {}).get("endpoint", "unlabelled")
+            if metric == "http_req_duration":
+                samples.append(value)
+                endpoint_samples[endpoint].append(value)
+            elif metric in metric_counts:
+                if metric == "checks":
+                    key = "checks_pass" if value else "checks_fail"
+                    counts[key] += 1
+                    endpoint_counts[endpoint][key] += 1
+                elif metric == "request_failure_rate":
+                    counts["request_failures"] += value
+                    endpoint_counts[endpoint]["request_failures"] += value
                 else:
-                    checks_fail += 1
+                    counts[metric] += value
+                    endpoint_counts[endpoint][metric] += value
 
     seconds = parse_duration(duration)
-    duration_seconds = seconds or 1.0
-    error_rate = failed / http_reqs if http_reqs else None
+    if seconds <= 0:
+        raise ValueError(f"duración inválida: {duration}")
+    http_reqs = int(counts["http_reqs"])
+    failures = int(counts["request_failures"])
+
+    def endpoint_result(name):
+        c = endpoint_counts[name]
+        n = int(c["http_reqs"])
+        return {
+            "requests": n,
+            "rps": round(n / seconds, 4),
+            "failure_rate": round(c["request_failures"] / n, 6) if n else None,
+            "latency_ms": stats(endpoint_samples[name]),
+        }
 
     summary = {
         "stack": stack,
-        "vus": vus,
+        "round": round_number,
         "duration": duration,
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "http_reqs": http_reqs,
-        "throughput_rps": round(http_reqs / duration_seconds, 4),
-        "http_req_failed_rate": round(error_rate, 6) if error_rate is not None else None,
-        "checks": {"passes": checks_pass, "fails": checks_fail},
-        "http_req_duration": stats(samples["http_req_duration"]),
-        "read_latency": stats(samples["read_latency"]),
-        "write_latency": stats(samples["write_latency"]),
-        "auth_latency": stats(samples["auth_latency"]),
-        "error_latency": stats(samples["error_latency"]),
+        "offered_rps": offered_rps,
+        "completed_rps": round(http_reqs / seconds, 4),
+        "requests": http_reqs,
+        "dropped_iterations": int(counts["dropped_iterations"]),
+        "failures": failures,
+        "failure_rate": round(failures / http_reqs, 6) if http_reqs else None,
+        "successful_requests": int(counts["successful_requests"]),
+        "expected_client_errors": int(counts["expected_client_errors"]),
+        "contract_failures": int(counts["contract_failures"]),
+        "server_failures": int(counts["server_failures"]),
+        "network_failures": int(counts["network_failures"]),
+        "checks": {"passes": int(counts["checks_pass"]), "fails": int(counts["checks_fail"])},
+        "latency_ms": stats(samples),
+        "endpoints": {name: endpoint_result(name) for name in sorted(endpoint_samples)},
     }
 
     with open(out_path, "w", encoding="utf-8") as fh:
