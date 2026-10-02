@@ -6,7 +6,7 @@ set -euo pipefail
 ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 COMPOSE_FILE="$ROOT_DIR/benchmarks/docker-compose.yml"
 RESULTS_DIR="$ROOT_DIR/benchmarks/results"
-RUN_NAME="$(date -u +%Y%m%dT%H%M%SZ)-$$"
+RUN_NAME="${RUN_NAME:-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
 RUN_DIR="$RESULTS_DIR/$RUN_NAME"
 COMPOSE=(docker compose --project-name saas-benchmark -f "$COMPOSE_FILE")
 RATES=${RATES:-"20 50 100 200"}
@@ -19,6 +19,7 @@ MAX_VUS=${MAX_VUS:-500}
 P95_TARGET_MS=${P95_TARGET_MS:-100}
 MAX_FAILURE_RATE=${MAX_FAILURE_RATE:-0.01}
 MIN_COMPLETION_RATIO=${MIN_COMPLETION_RATIO:-0.99}
+SCENARIO=${SCENARIO:-mixed}
 AUTH_TOKEN=${AUTH_TOKEN:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwiZW1haWwiOiJhZG1pbkBleGFtcGxlLmNvbSJ9.MTO9PoTY5azdFpJ7s4zTHpibadJdkQlHxqj5Lak5DWI}
 # Static token without exp is intentional for this lab; unsafe in production.
 
@@ -29,6 +30,11 @@ done
 [[ $REPEATS =~ ^[1-9][0-9]*$ && $SEED_ROWS =~ ^[0-9]+$ ]] || {
   echo 'REPEATS y SEED_ROWS deben ser enteros válidos' >&2; exit 2;
 }
+case "$SCENARIO" in
+  mixed) SCENARIO_FILE=mixed-workload.js; RESULT_PREFIX=mixed ;;
+  error) SCENARIO_FILE=error-storm.js; RESULT_PREFIX=error-storm ;;
+  *) echo "Escenario desconocido: $SCENARIO (usa mixed o error)" >&2; exit 2 ;;
+esac
 for rate in $RATES; do
   [[ $rate =~ ^[1-9][0-9]*$ ]] || { echo "Tasa inválida: $rate" >&2; exit 2; }
 done
@@ -36,8 +42,9 @@ done
 mkdir -p "$RUN_DIR"
 jq -n --arg created_at "$(date -u +%FT%TZ)" --arg rates "$RATES" \
   --arg stacks "${STACKS[*]}" --arg duration "$DURATION" --arg warmup "$WARMUP" \
+  --arg scenario "$SCENARIO" \
   --argjson repeats "$REPEATS" --argjson seed_rows "$SEED_ROWS" \
-  '{created_at:$created_at, rates:$rates, stacks:$stacks, duration:$duration,
+  '{created_at:$created_at, scenario:$scenario, rates:$rates, stacks:$stacks, duration:$duration,
     warmup:$warmup, repeats:$repeats, seed_rows:$seed_rows}' > "$RUN_DIR/manifest.json"
 
 reset_fixture() {
@@ -86,10 +93,10 @@ run_load() {
     -e "MAX_VUS=$MAX_VUS" -e "RUN_ID=$run_id" -e "AUTH_TOKEN=$AUTH_TOKEN")
   if [[ -n $raw ]]; then
     "${COMPOSE[@]}" --profile load run "${args[@]}" k6 \
-      run --out "json=/results/$raw" /tests/mixed-workload.js
+      run --out "json=/results/$raw" "/tests/$SCENARIO_FILE"
   else
     "${COMPOSE[@]}" --profile load run "${args[@]}" k6 \
-      run /tests/mixed-workload.js
+      run "/tests/$SCENARIO_FILE"
   fi
 }
 
@@ -104,7 +111,7 @@ for ((round=1; round<=REPEATS; round++)); do
       stack=${STACKS[index]}
       service="$stack-api"
       raw="raw-${stack}-r${rate}-n${round}.json"
-      summary="mixed-${stack}-r${rate}-n${round}.json"
+      summary="${RESULT_PREFIX}-${stack}-r${rate}-n${round}.json"
       metrics="resources-${stack}-r${rate}-n${round}.csv"
 
       echo "Ronda $round/$REPEATS: $stack a $rate RPS"
@@ -134,7 +141,7 @@ for ((round=1; round<=REPEATS; round++)); do
         echo "k6 falló con código $code; datos crudos conservados en $raw" >&2
         exit "$code"
       fi
-      python3 "$ROOT_DIR/benchmarks/k6-aggregate.py" \
+python3 "$ROOT_DIR/benchmarks/k6-aggregate.py" \
         "$RUN_DIR/$raw" "$stack" "$RUN_DIR/$summary" "$rate" "$DURATION" "$round"
       jq -r '"  completadas=\(.completed_rps) RPS p95=\(.latency_ms.p95) ms fallos=\(.failure_rate) descartadas=\(.dropped_iterations)"' \
         "$RUN_DIR/$summary"
@@ -146,6 +153,6 @@ for ((round=1; round<=REPEATS; round++)); do
 done
 
 echo "Resultados: $RUN_DIR"
-python3 "$ROOT_DIR/benchmarks/compare.py" "$RUN_DIR" --repeats "$REPEATS" \
+python3 "$ROOT_DIR/benchmarks/compare.py" "$RUN_DIR" --scenario "$RESULT_PREFIX" --repeats "$REPEATS" \
   --p95-ms "$P95_TARGET_MS" --max-failure-rate "$MAX_FAILURE_RATE" \
   --min-completion-ratio "$MIN_COMPLETION_RATIO"

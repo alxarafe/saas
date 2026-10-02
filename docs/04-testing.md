@@ -82,6 +82,25 @@ Configuración: `RATES="20 50 100 200"`, `REPEATS=5`, `WARMUP=30s`,
 RATES="20 50" REPEATS=2 DURATION=1m ./bin/k6.sh php go
 ```
 
+También existe un escenario **Error Storm**, centrado en validaciones, auth y
+conflictos transaccionales:
+
+```bash
+SCENARIO=error RATES="20 50" REPEATS=2 DURATION=30s ./bin/k6.sh
+```
+
+Para lanzar estas pruebas desde una interfaz local y ver el log y las métricas
+al terminar:
+
+```bash
+./bin/dashboard.sh
+# abrir http://localhost:8090
+```
+
+El dashboard es una herramienta de laboratorio: ejecuta `bin/k6.sh` como el
+usuario local y requiere que Docker esté disponible para ese usuario. Los
+resultados siguen siendo artefactos ignorados por Git en `benchmarks/results/`.
+
 Cada ejecución crea su propio directorio en `benchmarks/results/`. Cada ronda
 conserva NDJSON crudo, un resumen `mixed-<stack>-r<tasa>-n<ronda>.json`
 con latencias por endpoint, y muestras de `docker stats` en CSV. La tasa de fallo

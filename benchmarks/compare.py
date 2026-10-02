@@ -10,6 +10,7 @@ from pathlib import Path
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("run_dir", type=Path)
+    parser.add_argument("--scenario", default="mixed", help="prefijo de los resúmenes")
     parser.add_argument("--repeats", type=int, default=5)
     parser.add_argument("--p95-ms", type=float, default=100)
     parser.add_argument("--max-failure-rate", type=float, default=0.01)
@@ -17,12 +18,12 @@ def main():
     args = parser.parse_args()
 
     grouped = defaultdict(list)
-    for path in args.run_dir.glob("mixed-*.json"):
+    for path in args.run_dir.glob(f"{args.scenario}-*.json"):
         result = json.loads(path.read_text(encoding="utf-8"))
         grouped[(result["stack"], result["offered_rps"])].append(result)
 
     if not grouped:
-        parser.error("no hay resúmenes mixed-*.json en el directorio")
+        parser.error(f"no hay resúmenes {args.scenario}-*.json en el directorio")
 
     print(f"Criterio: p95 <= {args.p95_ms:g} ms, fallos <= {args.max_failure_rate:.1%}, "
           f"completadas/ofrecidas >= {args.min_completion_ratio:.1%}, "
