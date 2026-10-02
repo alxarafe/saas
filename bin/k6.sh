@@ -1,140 +1,151 @@
-#!/usr/bin/env sh
-# ============================================================================
-#  SaaS Multi-Stack — k6 Mixed Workload benchmark (Fase 3)
-#  Uso: ./bin/k6.sh [stacks...]
-#  Ejemplos:
-#    ./bin/k6.sh                       → los 5 stacks (secuencial)
-#    ./bin/k6.sh php go                → solo php y go
-#
-#  Configuración opcional (env):
-#    VU         usuarios virtuales      (default 10)
-#    DURATION   duración por stack      (default 30s)
-#    THINK_TIME pausa por iteración     (default 0.5)
-#    AUTH_TOKEN token estático para /me
-#
-#  Cada stack se mide por separado (mismas condiciones). Resultados en
-#  benchmarks/results/mixed-workload-<stack>.json
-# ============================================================================
-set -e
+#!/usr/bin/env bash
+# Reproducible load sweep in an isolated Compose project and database volume.
+# RATES="20 50 100 200" REPEATS=5 WARMUP=30s DURATION=3m ./bin/k6.sh [stacks...]
+set -euo pipefail
 
-SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-ROOT_DIR=$(dirname "$SCRIPT_DIR")
+ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+COMPOSE_FILE="$ROOT_DIR/benchmarks/docker-compose.yml"
 RESULTS_DIR="$ROOT_DIR/benchmarks/results"
+RUN_NAME="$(date -u +%Y%m%dT%H%M%SZ)-$$"
+RUN_DIR="$RESULTS_DIR/$RUN_NAME"
+COMPOSE=(docker compose --project-name saas-benchmark -f "$COMPOSE_FILE")
+RATES=${RATES:-"20 50 100 200"}
+REPEATS=${REPEATS:-5}
+WARMUP=${WARMUP:-30s}
+DURATION=${DURATION:-3m}
+SEED_ROWS=${SEED_ROWS:-10000}
+PRE_VUS=${PRE_VUS:-50}
+MAX_VUS=${MAX_VUS:-500}
+P95_TARGET_MS=${P95_TARGET_MS:-100}
+MAX_FAILURE_RATE=${MAX_FAILURE_RATE:-0.01}
+MIN_COMPLETION_RATIO=${MIN_COMPLETION_RATIO:-0.99}
+AUTH_TOKEN=${AUTH_TOKEN:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwiZW1haWwiOiJhZG1pbkBleGFtcGxlLmNvbSJ9.MTO9PoTY5azdFpJ7s4zTHpibadJdkQlHxqj5Lak5DWI}
+# Static token without exp is intentional for this lab; unsafe in production.
 
-VU="${VU:-10}"
-DURATION="${DURATION:-30s}"
-THINK_TIME="${THINK_TIME:-0.5}"
-AUTH_TOKEN="${AUTH_TOKEN:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwiZW1haWwiOiJhZG1pbkBleGFtcGxlLmNvbSJ9.MTO9PoTY5azdFpJ7s4zTHpibadJdkQlHxqj5Lak5DWI}"
+if (($#)); then STACKS=("$@"); else STACKS=(php python kotlin node go); fi
+for stack in "${STACKS[@]}"; do
+  case "$stack" in php|python|kotlin|node|go) ;; *) echo "Stack desconocido: $stack" >&2; exit 2;; esac
+done
+[[ $REPEATS =~ ^[1-9][0-9]*$ && $SEED_ROWS =~ ^[0-9]+$ ]] || {
+  echo 'REPEATS y SEED_ROWS deben ser enteros válidos' >&2; exit 2;
+}
+for rate in $RATES; do
+  [[ $rate =~ ^[1-9][0-9]*$ ]] || { echo "Tasa inválida: $rate" >&2; exit 2; }
+done
 
-check_health() {
-  local container="$1" label="$2"
-  local status
-  status=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}started{{end}}' "${container}" 2>/dev/null)
-  if [ "$status" != "healthy" ]; then
-    echo "  [${label}] NO SANO (estado: ${status})"
-    echo "  Ejecuta primero: ./bin/docker-up.sh ${container#saas-}"
-    exit 1
-  fi
-  echo "  [${label}] sano"
+mkdir -p "$RUN_DIR"
+jq -n --arg created_at "$(date -u +%FT%TZ)" --arg rates "$RATES" \
+  --arg stacks "${STACKS[*]}" --arg duration "$DURATION" --arg warmup "$WARMUP" \
+  --argjson repeats "$REPEATS" --argjson seed_rows "$SEED_ROWS" \
+  '{created_at:$created_at, rates:$rates, stacks:$stacks, duration:$duration,
+    warmup:$warmup, repeats:$repeats, seed_rows:$seed_rows}' > "$RUN_DIR/manifest.json"
+
+reset_fixture() {
+  # Only the dedicated saas-benchmark PostgreSQL volume is touched.
+  "${COMPOSE[@]}" exec -T postgres psql -U saas -d saas -v ON_ERROR_STOP=1 \
+    -c 'TRUNCATE TABLE users RESTART IDENTITY' \
+    -c "INSERT INTO users (email, password_hash) SELECT 'seed-' || n || '@example.com', 'seed-hash' FROM generate_series(1, $SEED_ROWS) AS n" >/dev/null
+  local rows
+  rows=$("${COMPOSE[@]}" exec -T postgres psql -U saas -d saas -Atc 'SELECT COUNT(*) FROM users')
+  [[ $rows == "$SEED_ROWS" ]] || { echo "Fixture incorrecto: $rows filas" >&2; exit 1; }
 }
 
-run_stack() {
-  local name="$1" url="$2" container="$3"
-  local code
-
-  check_health "${container}" "$name"
-
-  echo ""
-  echo "  ─────────────────────────────────────────────────────────"
-  echo "  k6 → ${name}  (${url})"
-  echo "  VU=${VU} DURATION=${DURATION} THINK_TIME=${THINK_TIME}"
-  echo "  ─────────────────────────────────────────────────────────"
-
-  docker compose --profile k6 run --rm \
-    -e STACK="${name}" \
-    -e TARGET_URL="${url}" \
-    -e VU="${VU}" \
-    -e DURATION="${DURATION}" \
-    -e THINK_TIME="${THINK_TIME}" \
-    -e AUTH_TOKEN="${AUTH_TOKEN}" \
-    k6 run --out json="/results/raw-${name}.json" /tests/mixed-workload.js
-  code=$?
-
-  if [ "$code" -eq 0 ] || [ "$code" -eq 99 ]; then
-    python3 "$ROOT_DIR/benchmarks/k6-aggregate.py" \
-      "$RESULTS_DIR/raw-${name}.json" "$name" \
-      "$RESULTS_DIR/mixed-workload-${name}.json" "$VU" "$DURATION"
-    rm -f "$RESULTS_DIR/raw-${name}.json"
-  fi
-
-  case "$code" in
-    0) ;;
-    99)
-      echo "  ⚠ [${name}] umbral de fallo superado — revísalo en benchmarks/results/mixed-workload-${name}.json"
-      ;;
-    *)
-      echo "  [${name}] k6 terminó con error (exit ${code})"
-      return 1
-      ;;
-  esac
+contract_test() {
+  local stack=$1
+  echo "Contrato Bruno: $stack"
+  "${COMPOSE[@]}" --profile contract run --rm --no-deps bruno \
+    bru run -r /tests/tests --env-var "base_url=http://$stack-api:3000" \
+    --env-var "auth_token=$AUTH_TOKEN"
+  local partial_rows
+  partial_rows=$("${COMPOSE[@]}" exec -T postgres psql -U saas -d saas -Atc \
+    "SELECT COUNT(*) FROM users WHERE email = 'rollback-probe@example.com'")
+  [[ $partial_rows == 0 ]] || {
+    echo "Rollback incumplido: $partial_rows filas parciales" >&2; exit 1;
+  }
 }
 
-print_comparison() {
-  echo ""
-  echo "  ╔═══════════════════════════════════════════════════════════════════╗"
-  echo "  ║   k6 Mixed Workload — Comparativa por stack                        ║"
-  echo "  ╚═══════════════════════════════════════════════════════════════════╝"
-  printf "  %-8s %7s %7s %8s %8s %8s %8s\n" STACK REQS RPS "p50 ms" "p95 ms" "p99 ms" "err%"
-  for svc in "$@"; do
-    local f="$RESULTS_DIR/mixed-workload-$svc.json"
-    if [ ! -f "$f" ]; then
-      printf "  %-8s %s\n" "$svc" "(sin resultados)"
-      continue
+monitor_stats() {
+  local output=$1
+  printf 'utc,container,cpu_percent,memory,network_io\n' > "$output"
+  while :; do
+    local ids
+    ids=$(docker ps --filter label=com.docker.compose.project=saas-benchmark --format '{{.ID}}')
+    if [[ -n $ids ]]; then
+      docker stats --no-stream --format "$(date -u +%FT%TZ),{{.Name}},{{.CPUPerc}},{{.MemUsage}},{{.NetIO}}" $ids >> "$output" 2>/dev/null || true
     fi
-    line=$(jq -r '[.http_reqs, (.throughput_rps|round), (.http_req_duration.p50|round), (.http_req_duration.p95|round), (.http_req_duration.p99|round), (.http_req_failed_rate*100)] | @tsv' "$f")
-    read -r reqs rps p50 p95 p99 err <<EOF
-$line
-EOF
-    printf "  %-8s %7s %7s %8s %8s %8s %7.2f%%\n" "$svc" "$reqs" "$rps" "$p50" "$p95" "$p99" "$err"
+    sleep 5
   done
 }
 
-# El contenedor k6 corre como uid 12345 (imagen grafana/k6, no-root): el
-# bind-mount de resultados debe ser escribible por "otros".
-mkdir -p "$RESULTS_DIR"
-chmod 777 "$RESULTS_DIR" 2>/dev/null || true
+run_load() {
+  local stack=$1 rate=$2 duration=$3 round=$4 phase=$5 raw=$6
+  local run_id="${stack}-${rate}-${round}-${phase}"
+  local args=(--rm --no-deps --user "$(id -u):$(id -g)"
+    -e "STACK=$stack" -e "TARGET_URL=http://$stack-api:3000"
+    -e "RATE=$rate" -e "DURATION=$duration" -e "PRE_VUS=$PRE_VUS"
+    -e "MAX_VUS=$MAX_VUS" -e "RUN_ID=$run_id" -e "AUTH_TOKEN=$AUTH_TOKEN")
+  if [[ -n $raw ]]; then
+    "${COMPOSE[@]}" --profile load run "${args[@]}" k6 \
+      run --out "json=/results/$raw" /tests/mixed-workload.js
+  else
+    "${COMPOSE[@]}" --profile load run "${args[@]}" k6 \
+      run /tests/mixed-workload.js
+  fi
+}
 
-echo "  k6 Mixed Workload — pre-flight:"
-check_health "saas-php-api"    "php"
-check_health "saas-python-api" "python"
-check_health "saas-kotlin-api" "kotlin"
-check_health "saas-node-api"   "node"
-check_health "saas-go-api"     "go"
+echo 'Preparando proyecto Docker aislado saas-benchmark'
+"${COMPOSE[@]}" up -d --wait postgres
+"${COMPOSE[@]}" build bruno "${STACKS[@]/%/-api}"
 
-if [ $# -gt 0 ]; then
-  SELECTED="$@"
-else
-  SELECTED="php python kotlin node go"
-fi
+for ((round=1; round<=REPEATS; round++)); do
+  for rate in $RATES; do
+    for ((step=0; step<${#STACKS[@]}; step++)); do
+      index=$(((step + round - 1) % ${#STACKS[@]}))
+      stack=${STACKS[index]}
+      service="$stack-api"
+      raw="raw-${stack}-r${rate}-n${round}.json"
+      summary="mixed-${stack}-r${rate}-n${round}.json"
+      metrics="resources-${stack}-r${rate}-n${round}.csv"
 
-for svc in $SELECTED; do
-  case "$svc" in
-    php)    run_stack "php"    "http://php-api:3000"    "saas-php-api" ;;
-    python) run_stack "python" "http://python-api:3000" "saas-python-api" ;;
-    kotlin) run_stack "kotlin" "http://kotlin-api:3000" "saas-kotlin-api" ;;
-    node)   run_stack "node"   "http://node-api:3000"   "saas-node-api" ;;
-    go)     run_stack "go"     "http://go-api:3000"     "saas-go-api" ;;
-    *)
-      echo "  Stack desconocido: $svc"
-      echo "  Válidos: php, python, kotlin, node, go"
-      ;;
-  esac
+      echo "Ronda $round/$REPEATS: $stack a $rate RPS"
+      "${COMPOSE[@]}" up -d --wait "$service"
+      if ((round == 1)); then contract_test "$stack"; fi
+      reset_fixture
+      set +e
+      run_load "$stack" "$rate" "$WARMUP" "$round" warmup ''
+      warmup_code=$?
+      set -e
+      if ((warmup_code != 0 && warmup_code != 99)); then
+        echo "Calentamiento falló con código $warmup_code" >&2
+        exit "$warmup_code"
+      fi
+      # Warm-up writes are excluded from the measured database state.
+      reset_fixture
+
+      monitor_stats "$RUN_DIR/$metrics" &
+      monitor_pid=$!
+      set +e
+      run_load "$stack" "$rate" "$DURATION" "$round" measure "$RUN_NAME/$raw"
+      code=$?
+      set -e
+      kill "$monitor_pid" 2>/dev/null || true
+      wait "$monitor_pid" 2>/dev/null || true
+      if ((code != 0 && code != 99)); then
+        echo "k6 falló con código $code; datos crudos conservados en $raw" >&2
+        exit "$code"
+      fi
+      python3 "$ROOT_DIR/benchmarks/k6-aggregate.py" \
+        "$RUN_DIR/$raw" "$stack" "$RUN_DIR/$summary" "$rate" "$DURATION" "$round"
+      jq -r '"  completadas=\(.completed_rps) RPS p95=\(.latency_ms.p95) ms fallos=\(.failure_rate) descartadas=\(.dropped_iterations)"' \
+        "$RUN_DIR/$summary"
+      if ((code == 99)); then echo '  Umbral de carga superado; resumen conservado.'; fi
+      if ((round == REPEATS)); then contract_test "$stack"; fi
+      "${COMPOSE[@]}" stop "$service" >/dev/null
+    done
+  done
 done
 
-print_comparison $SELECTED
-
-echo ""
-echo "  Resultados individuales:"
-for svc in $SELECTED; do
-  [ -f "$RESULTS_DIR/mixed-workload-$svc.json" ] && echo "    benchmarks/results/mixed-workload-$svc.json"
-done
+echo "Resultados: $RUN_DIR"
+python3 "$ROOT_DIR/benchmarks/compare.py" "$RUN_DIR" --repeats "$REPEATS" \
+  --p95-ms "$P95_TARGET_MS" --max-failure-rate "$MAX_FAILURE_RATE" \
+  --min-completion-ratio "$MIN_COMPLETION_RATIO"

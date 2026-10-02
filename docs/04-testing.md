@@ -60,8 +60,13 @@ Mide el rendimiento de cada stack combinando:
 
 ### Benchmark de carga (k6, Fase 3)
 
-`bin/k6.sh` ejecuta el escenario **Mixed Workload** con `grafana/k6`, un contenedor
-por stack (secuencial, mismas condiciones). Distribución por request:
+`bin/k6.sh` ejecuta el escenario **Mixed Workload** con una tasa de llegada fija.
+Usa el proyecto Compose `saas-benchmark`, con una base de datos y un volumen
+exclusivos. No borra ni restaura datos del proyecto Compose habitual. Antes y
+después del calentamiento restablece `users` a `SEED_ROWS` filas; el calentamiento
+no entra en los resultados. Ejecuta las rondas en orden rotativo y comprueba el
+contrato con Bruno, incluido el rollback mediante una consulta directa a la BD.
+Distribución aproximada por request:
 
 | Categoría | % | Endpoints |
 |-----------|---|-----------|
@@ -70,9 +75,25 @@ por stack (secuencial, mismas condiciones). Distribución por request:
 | Auth | 8 % | `POST /auth/login` |
 | Errores | 2 % | `GET /not-found`, `GET /me` sin token |
 
-Cada ejecución exporta un JSON resumen a `benchmarks/results/mixed-workload-<stack>.json`
-con latencia p50/p95/p99 por categoría, throughput (RPS), checks y tasa de error.
-Umbral estructural: `http_req_failed < 5 %` (no aborta; marca el run con exit 99).
+Configuración: `RATES="20 50 100 200"`, `REPEATS=5`, `WARMUP=30s`,
+`DURATION=3m`, `SEED_ROWS=10000`, `PRE_VUS=50`, `MAX_VUS=500`. Ejemplo corto:
+
+```bash
+RATES="20 50" REPEATS=2 DURATION=1m ./bin/k6.sh php go
+```
+
+Cada ejecución crea su propio directorio en `benchmarks/results/`. Cada ronda
+conserva NDJSON crudo, un resumen `mixed-<stack>-r<tasa>-n<ronda>.json`
+con latencias por endpoint, y muestras de `docker stats` en CSV. La tasa de fallo
+excluye los `401/404` previstos y distingue incumplimientos del contrato, `5xx`
+y errores de red. `dropped_iterations` indica si k6 no pudo ofrecer la tasa.
+La carga superada no borra el resumen. `benchmarks/compare.py` compara las rondas
+completas con límites configurables (`P95_TARGET_MS`, `MAX_FAILURE_RATE`,
+`MIN_COMPLETION_RATIO`); el criterio por defecto es p95 ≤ 100 ms, fallos ≤ 1 %,
+al menos 99 % de la tasa ofrecida y cero iteraciones descartadas. Es un criterio
+de laboratorio, no un SLA de producto. El proyecto aislado puede pararse con
+`docker compose -p saas-benchmark -f benchmarks/docker-compose.yml down`;
+el volumen de datos queda disponible para inspección.
 
 ## Añadir un nuevo test
 

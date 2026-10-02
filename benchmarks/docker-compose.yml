@@ -1,0 +1,105 @@
+name: saas-benchmark
+
+x-api: &api
+  restart: "no"
+  cpus: '1.0'
+  mem_limit: 512m
+  depends_on:
+    postgres:
+      condition: service_healthy
+  environment:
+    DB_HOST: postgres
+
+services:
+  postgres:
+    image: postgres:17
+    restart: "no"
+    cpus: '2.0'
+    mem_limit: 1g
+    environment:
+      POSTGRES_USER: saas
+      POSTGRES_PASSWORD: saas
+      POSTGRES_DB: saas
+    volumes:
+      - benchmark_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U saas -d saas"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  php-api:
+    <<: *api
+    build:
+      context: ..
+      dockerfile: docker/php/Dockerfile
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  python-api:
+    <<: *api
+    build:
+      context: ..
+      dockerfile: docker/python/Dockerfile
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3000/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  kotlin-api:
+    <<: *api
+    build:
+      context: ..
+      dockerfile: docker/kotlin/Dockerfile
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3000/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  node-api:
+    <<: *api
+    build:
+      context: ..
+      dockerfile: docker/node/Dockerfile
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3000/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  go-api:
+    <<: *api
+    build:
+      context: ..
+      dockerfile: docker/go/Dockerfile
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3000/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  bruno:
+    image: saas-benchmark-bruno
+    build:
+      context: ..
+      dockerfile: docker/bruno/Dockerfile
+    profiles: [contract]
+    volumes:
+      - ../tests/bruno:/tests:ro
+
+  k6:
+    image: grafana/k6:0.49.0
+    profiles: [load]
+    cpus: '2.0'
+    mem_limit: 1g
+    volumes:
+      - ../tests/k6:/tests:ro
+      - ./results:/results
+
+volumes:
+  benchmark_postgres_data:
