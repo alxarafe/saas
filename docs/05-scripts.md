@@ -16,6 +16,7 @@ Todos los scripts son auto-contenidos y se ejecutan desde la raíz del repositor
 
 | Script | Descripción |
 |--------|-------------|
+| `bin/lab.sh` | Batería completa: contrato, latencia y k6; genera informe comparativo |
 | `bin/test.sh [iteraciones]` | Benchmark completo (Bruno + HTTP directo). Aborta si algún stack no está `healthy` |
 | `bin/test-simple.sh [stacks...]` | Tests rápidos de contrato (solo Bruno). Aborta si algún stack no está `healthy` |
 | `bin/k6.sh [stacks...]` | k6 Mixed Workload en proyecto Compose y BD aislados. Barrido de RPS con fixture restaurado por ronda |
@@ -32,6 +33,12 @@ Todos los scripts son auto-contenidos y se ejecutan desde la raíz del repositor
 # Levantar todo y ejecutar tests
 ./bin/docker-up.sh
 ./bin/test-simple.sh
+
+# Ejecutar toda la batería y generar benchmarks/results/<id>/report.md
+./bin/lab.sh
+
+# Ejecución corta de la batería k6 (útil para validar cambios)
+RATES="20 50" REPEATS=2 DURATION=30s ./bin/lab.sh
 
 # Trabajar solo con PHP y Go
 ./bin/docker-up.sh php-api go-api

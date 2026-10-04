@@ -10,10 +10,13 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const publicDir = path.join(root, 'dashboard', 'public');
 const resultsDir = path.join(root, 'benchmarks', 'results');
+const blogDir = path.join(root, 'private', 'blog-benchmark-2026-10-02');
+const blogResultsDir = path.join(blogDir, 'runs');
 const port = Number(process.env.DASHBOARD_PORT || 8090);
 const runs = new Map();
 const allowedStacks = new Set(['php', 'python', 'kotlin', 'node', 'go']);
 const allowedScenarios = new Set(['mixed', 'error']);
+const allowedProfiles = new Set(['read', 'balanced', 'write']);
 
 function json(res, status, body) {
   res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
@@ -49,6 +52,26 @@ async function history() {
   return items.sort((a, b) => b.id.localeCompare(a.id));
 }
 
+async function blogSummaries(runId) {
+  const dir = path.join(blogResultsDir, runId);
+  if (!existsSync(dir)) return [];
+  const files = (await readdir(dir)).filter((name) => /^mixed-.*\.json$/.test(name));
+  return Promise.all(files.map(async (name) => JSON.parse(await readFile(path.join(dir, name), 'utf8'))));
+}
+
+async function blogHistory() {
+  if (!existsSync(blogResultsDir)) return [];
+  const dirs = await readdir(blogResultsDir, { withFileTypes: true });
+  const items = [];
+  for (const dir of dirs.filter((entry) => entry.isDirectory())) {
+    const manifestPath = path.join(blogResultsDir, dir.name, 'manifest.json');
+    if (!existsSync(manifestPath)) continue;
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+    items.push({ id: dir.name, ...manifest, summaries: await blogSummaries(dir.name) });
+  }
+  return items.sort((a, b) => b.id.localeCompare(a.id));
+}
+
 function launch(config) {
   const id = `dashboard-${new Date().toISOString().replace(/[-:.TZ]/g, '')}-${process.pid}`;
   const state = { id, status: 'running', lines: [], subscribers: new Set(), startedAt: new Date().toISOString() };
@@ -77,10 +100,41 @@ function launch(config) {
   return state;
 }
 
+function launchBlog(config) {
+  const id = `dashboard-blog-${new Date().toISOString().replace(/[-:.TZ]/g, '')}-${process.pid}`;
+  const state = { id, status: 'running', lines: [], subscribers: new Set(), startedAt: new Date().toISOString() };
+  runs.set(id, state);
+  const child = spawn('bash', [path.join(root, 'private', 'blog-benchmark-2026-10-02', 'run.sh')], {
+    cwd: root,
+    env: { ...process.env, RUN_NAME: id, PROFILES: config.profiles, RATES: config.rates,
+      REPEATS: String(config.repeats), WARMUP: config.warmup, DURATION: config.duration,
+      SEED_ROWS: String(config.seedRows), PRE_VUS: String(config.preVus), MAX_VUS: String(config.maxVus),
+      STACKS: config.stacks.join(' ') },
+  });
+  const push = (line) => {
+    state.lines.push(line);
+    for (const res of state.subscribers) res.write(`data: ${JSON.stringify({ line })}\n\n`);
+  };
+  child.stdout.on('data', (chunk) => chunk.toString().split('\n').filter(Boolean).forEach(push));
+  child.stderr.on('data', (chunk) => chunk.toString().split('\n').filter(Boolean).forEach(push));
+  child.on('close', async (code) => {
+    state.status = code === 0 ? 'completed' : 'failed';
+    state.code = code;
+    state.results = await blogSummaries(id);
+    for (const res of state.subscribers) {
+      res.write(`event: done\ndata: ${JSON.stringify({ status: state.status, code })}\n\n`);
+      res.end();
+    }
+    state.subscribers.clear();
+  });
+  return state;
+}
+
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
     if (url.pathname === '/api/history' && req.method === 'GET') return json(res, 200, await history());
+    if (url.pathname === '/api/blog-history' && req.method === 'GET') return json(res, 200, await blogHistory());
     if (url.pathname === '/api/runs' && req.method === 'POST') {
       const config = await body(req);
       const stacks = Array.isArray(config.stacks) ? config.stacks : ['php', 'python', 'kotlin', 'node', 'go'];
@@ -90,6 +144,20 @@ const server = http.createServer(async (req, res) => {
       const repeats = Number(config.repeats);
       if (!Number.isInteger(repeats) || repeats < 1 || repeats > 20) return json(res, 400, { error: 'repeats inválido' });
       const state = launch({ ...config, stacks, repeats });
+      return json(res, 202, { id: state.id, status: state.status });
+    }
+    if (url.pathname === '/api/blog-runs' && req.method === 'POST') {
+      const config = await body(req);
+      const profiles = typeof config.profiles === 'string' ? config.profiles.trim().split(/\s+/) : ['balanced'];
+      const stacks = Array.isArray(config.stacks) ? config.stacks : ['php', 'python', 'kotlin', 'node', 'go'];
+      if (!stacks.length || stacks.some((stack) => !allowedStacks.has(stack))) return json(res, 400, { error: 'stacks inválidos' });
+      if (!profiles.length || profiles.some((profile) => !allowedProfiles.has(profile))) return json(res, 400, { error: 'perfiles inválidos' });
+      if (!validRates(config.rates) || !validDuration(config.warmup) || !validDuration(config.duration)) return json(res, 400, { error: 'parámetros inválidos' });
+      const repeats = Number(config.repeats); const seedRows = Number(config.seedRows);
+      const preVus = Number(config.preVus || 50); const maxVus = Number(config.maxVus || 2000);
+      if (![repeats, seedRows, preVus, maxVus].every(Number.isInteger) || repeats < 1 || repeats > 20 || seedRows < 1 || preVus < 1 || maxVus < preVus)
+        return json(res, 400, { error: 'números inválidos' });
+      const state = launchBlog({ ...config, stacks, profiles: profiles.join(' '), repeats, seedRows, preVus, maxVus });
       return json(res, 202, { id: state.id, status: state.status });
     }
     const eventMatch = url.pathname.match(/^\/api\/runs\/([^/]+)\/events$/);

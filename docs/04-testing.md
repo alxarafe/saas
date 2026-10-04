@@ -9,6 +9,26 @@
 
 ## Tipos de tests
 
+### Batería completa del laboratorio
+
+Para ejecutar en una sola operación la suite contractual, el benchmark ligero y
+los escenarios k6 (`mixed` y `error`), usar:
+
+```bash
+./bin/lab.sh
+```
+
+Genera un directorio `benchmarks/results/<id>/` con los logs de cada fase y un
+`report.md` comparativo. La ejecución completa puede tardar bastante; para una
+prueba corta:
+
+```bash
+RATES="20 50" REPEATS=2 DURATION=30s ./bin/lab.sh
+```
+
+Se pueden seleccionar escenarios con `K6_SCENARIOS=mixed` o
+`K6_SCENARIOS="mixed error"`.
+
 ### Contract tests (Bruno)
 
 Archivos `.bru` en `tests/bruno/tests/`. Verifican que cada implementación cumpla el contrato API.
@@ -97,9 +117,21 @@ al terminar:
 # abrir http://localhost:8090
 ```
 
-El dashboard es una herramienta de laboratorio: ejecuta `bin/k6.sh` como el
-usuario local y requiere que Docker esté disponible para ese usuario. Los
-resultados siguen siendo artefactos ignorados por Git en `benchmarks/results/`.
+El cliente necesita Node.js en el host y acceso a Docker; los servicios, la
+base de datos y k6 se ejecutan en contenedores. Para reproducirlo desde cero:
+
+```bash
+docker compose build
+./bin/dashboard.sh
+```
+
+El dashboard es una herramienta de laboratorio: ejecuta los runners como el
+usuario local y requiere que Docker esté disponible para ese usuario. Además
+del benchmark general, permite ejecutar la comparativa editorial secuencial.
+En el navegador se pueden elegir perfiles, tasas, repeticiones, filas iniciales
+y VUs; los resultados aparecen en una tabla con RPS, p95, fallos, descartes y
+estado `APTO`/`NO APTO`. Los resultados generales siguen siendo artefactos
+ignorados por Git en `benchmarks/results/`.
 
 Cada ejecución crea su propio directorio en `benchmarks/results/`. Cada ronda
 conserva NDJSON crudo, un resumen `mixed-<stack>-r<tasa>-n<ronda>.json`
@@ -113,6 +145,52 @@ al menos 99 % de la tasa ofrecida y cero iteraciones descartadas. Es un criterio
 de laboratorio, no un SLA de producto. El proyecto aislado puede pararse con
 `docker compose -p saas-benchmark -f benchmarks/docker-compose.yml down`;
 el volumen de datos queda disponible para inspección.
+
+### Comparativa editorial del blog
+
+Para los gráficos y resultados de la entrada del blog existe un runner separado
+en `private/blog-benchmark-2026-10-02/run.sh`. Ejecuta tres perfiles explícitos
+sobre una base de datos aislada:
+
+```bash
+PROFILES="read balanced write" RATES="50 200 500" REPEATS=3 \
+WARMUP=10s DURATION=60s SEED_ROWS=100000 \
+./private/blog-benchmark-2026-10-02/run.sh
+```
+
+Los perfiles representan lecturas, una mezcla equilibrada y escrituras
+intensivas. Son hipótesis de tráfico del laboratorio. `/auth/login` no forma
+parte de esta comparativa porque actualmente usa una contraseña sin hashing
+real; medirlo como si fuera un login de producción sería engañoso.
+
+El runner rota el orden de los stacks, restaura el fixture entre rondas y recoge
+latencias por endpoint, errores, iteraciones descartadas y `docker stats`. Una
+tasa solo se considera sostenible si completa al menos el 99 % de la oferta,
+mantiene p95 ≤ 100 ms, tiene ≤ 1 % de fallos reales y cero iteraciones
+descartadas. Es un criterio editorial del laboratorio, no un SLA.
+
+Después de una ejecución, generar las imágenes con:
+
+```bash
+python3 private/blog-benchmark-2026-10-02/figures.py \
+  private/blog-benchmark-2026-10-02/runs/<ejecución> --repeats 3
+```
+
+Al terminar la primera pasada se puede hacer una revisión provisional sin
+sobrescribir las imágenes definitivas:
+
+```bash
+python3 private/blog-benchmark-2026-10-02/figures.py \
+  private/blog-benchmark-2026-10-02/runs/<ejecución> --repeats 1 \
+  --out-dir private/blog-benchmark-2026-10-02/images/pass-1
+```
+
+Una sola pasada sirve para detectar errores y tendencias gruesas; las
+conclusiones finales deben basarse en las tres rondas y sus medianas.
+
+El benchmark no cubre todavía soak prolongado, agotamiento configurable del
+pool ni hashing real. Son líneas de trabajo posteriores y no bloquean esta
+comparativa si sus límites se explican en el artículo.
 
 ## Añadir un nuevo test
 

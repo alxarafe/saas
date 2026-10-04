@@ -67,6 +67,7 @@ def main():
         "expected_client_errors", "contract_failures", "server_failures",
         "network_failures", "request_failure_rate", "checks",
     }
+    profile = None
 
     with open(raw_path, encoding="utf-8") as fh:
         for line in fh:
@@ -82,6 +83,7 @@ def main():
             if value is None:
                 continue
             endpoint = (data.get("tags") or {}).get("endpoint", "unlabelled")
+            profile = profile or (data.get("tags") or {}).get("profile")
             if metric == "http_req_duration":
                 samples.append(value)
                 endpoint_samples[endpoint].append(value)
@@ -115,6 +117,7 @@ def main():
 
     summary = {
         "stack": stack,
+        "profile": profile,
         "round": round_number,
         "duration": duration,
         "generated_at": datetime.now(timezone.utc).isoformat(),

@@ -24,6 +24,9 @@ Todas las implementaciones deben comportarse de forma idéntica desde la perspec
 # Ejecutar tests de contrato
 ./bin/test-simple.sh
 
+# Ejecutar toda la batería del laboratorio y generar un informe comparativo
+./bin/lab.sh
+
 # Dashboard local para lanzar benchmarks y ver resultados
 ./bin/dashboard.sh
 
@@ -45,6 +48,7 @@ Todas las implementaciones deben comportarse de forma idéntica desde la perspec
 | `./bin/docker-build.sh` | Construye imágenes |
 | `./bin/test.sh` | Benchmark completo |
 | `./bin/test-simple.sh` | Tests rápidos de contrato |
+| `./bin/lab.sh` | Batería completa con informe comparativo |
 | `./bin/dashboard.sh` | Dashboard local para ejecutar y consultar benchmarks |
 | `./bin/shell.sh` | Shell en un contenedor |
 

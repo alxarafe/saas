@@ -38,5 +38,16 @@ Comparar objetivamente lenguajes y stacks en aspectos operativos reales:
 | Docker Compose | Orquestación |
 | PostgreSQL | Base de datos compartida |
 | Bruno | Contract testing |
-| k6 (`grafana/k6`) | Benchmark de carga (Mixed Workload, Fase 3) |
+| k6 (`grafana/k6`) | Benchmarks de carga (`mixed` y `error`) |
 | GitHub Actions | CI/CD (planificado) |
+
+## Comparativa preparada para publicación
+
+La comparativa editorial usa el runner aislado
+`private/blog-benchmark-2026-10-02/run.sh`, con los perfiles `read`, `balanced` y
+`write`, PostgreSQL independiente, fixture reproducible y tres rondas por punto.
+La metodología completa y sus límites de interpretación están en
+`private/blog-benchmark-2026-10-02/METODOLOGIA.md`.
+
+Los resultados deben describirse como rendimiento de estas implementaciones y
+estas operaciones bajo Docker, no como una clasificación general de lenguajes.
